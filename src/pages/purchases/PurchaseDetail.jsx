@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, BadgeCheck, CheckCircle2, Clock, PackageCheck, Play,
-  Printer, StopCircle, Truck, XCircle,
+  ArrowLeft, CheckCircle2, Clock, Download, PackageCheck, Play,
+  StopCircle, Truck,
 } from 'lucide-react';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
 import Button from '@/components/common/Button';
 import Modal from '@/components/common/Modal';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
+import WhatsAppShareModal from '@/components/common/WhatsAppShareModal';
+import WhatsAppIcon from '@/components/common/WhatsAppIcon';
 import { purchaseService } from '@/services/purchaseService';
+import { pdfService } from '@/services/pdfService';
+import { whatsappService } from '@/services/whatsappService';
 import { eventBus, EVENTS } from '@/services/eventBus';
 import { useBusiness } from '@/context/BusinessContext';
 import { useToast } from '@/context/ToastContext';
@@ -46,6 +50,8 @@ export default function PurchaseDetail() {
   const [receiveNote, setReceiveNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [showWhatsApp, setShowWhatsApp] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -55,7 +61,9 @@ export default function PurchaseDetail() {
     return p;
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   useEffect(() => {
     const off = eventBus.on(EVENTS.PO_UPDATED, updated => {
@@ -65,7 +73,8 @@ export default function PurchaseDetail() {
   }, [id]);
 
   const totals = useMemo(() => {
-    if (!po) return { ordered: 0, received: 0, receivedValue: 0, remainingValue: 0 };
+    if (!po)
+      return { ordered: 0, received: 0, receivedValue: 0, remainingValue: 0 };
     const ordered = po.items.reduce((s, i) => s + i.qty, 0);
     const received = po.items.reduce((s, i) => s + (i.received || 0), 0);
     const receivedValue = po.items.reduce(
@@ -142,6 +151,63 @@ export default function PurchaseDetail() {
     }
   };
 
+  const downloadPdf = async () => {
+    if (!po) return;
+    setDownloading(true);
+    try {
+      const items = po.items.map(i => ({
+        description: i.name,
+        qty: i.qty,
+        unitPrice: i.buyingPrice,
+        total: i.qty * i.buyingPrice,
+      }));
+
+      const meta = [
+        { label: 'Status', value: STATUS_LABEL[po.status] || po.status },
+      ];
+      if (po.expectedAt) {
+        meta.push({
+          label: 'Expected',
+          value: new Date(po.expectedAt).toLocaleDateString('en-KE', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          }),
+        });
+      }
+      if (po.orderedAt) {
+        meta.push({
+          label: 'Ordered',
+          value: new Date(po.orderedAt).toLocaleDateString('en-KE'),
+        });
+      }
+
+      const blob = await pdfService.generateInvoicePdf({
+        documentType: 'PURCHASE ORDER',
+        documentNumber: po.number,
+        issuedDate: new Date(po.createdAt).toLocaleDateString('en-KE'),
+        business,
+        partyLabel: 'Supplier',
+        party: {
+          name: po.supplierName,
+        },
+        items,
+        totals: {
+          Subtotal: po.subtotal,
+          Total: po.total,
+        },
+        notes: po.notes || '',
+        meta,
+      });
+      pdfService.downloadBlob(blob, `${po.number}.pdf`);
+      toast.success('Purchase order PDF downloaded.');
+    } catch (err) {
+      toast.error(err.message || 'Could not generate PDF.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="stack gap-16">
@@ -169,6 +235,12 @@ export default function PurchaseDetail() {
   const canCancel = po.status === 'draft' || po.status === 'ordered';
   const canOrder = po.status === 'draft';
 
+  const whatsappMessage = whatsappService.buildPurchaseOrderMessage({
+    business,
+    po,
+    footerNote: 'Please confirm receipt of this purchase order.',
+  });
+
   return (
     <div className="stack gap-24">
       <header className="page-head">
@@ -176,7 +248,10 @@ export default function PurchaseDetail() {
           <button className="back-link" onClick={() => nav('/purchases')}>
             <ArrowLeft size={14} /> Back to purchases
           </button>
-          <div className="row gap-12" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+          <div
+            className="row gap-12"
+            style={{ flexWrap: 'wrap', alignItems: 'center' }}
+          >
             <h1 className="page-title mono">{po.number}</h1>
             <Badge tone={STATUS_TONE[po.status]}>{STATUS_LABEL[po.status]}</Badge>
           </div>
@@ -185,6 +260,21 @@ export default function PurchaseDetail() {
           </p>
         </div>
         <div className="row gap-8" style={{ flexWrap: 'wrap' }}>
+          <Button
+            variant="outline"
+            leftIcon={<Download size={14} />}
+            loading={downloading}
+            onClick={downloadPdf}
+          >
+            Download PDF
+          </Button>
+          <Button
+            variant="outline"
+            leftIcon={<WhatsAppIcon size={14} />}
+            onClick={() => setShowWhatsApp(true)}
+          >
+            Send on WhatsApp
+          </Button>
           {canOrder && (
             <Button
               variant="outline"
@@ -217,7 +307,9 @@ export default function PurchaseDetail() {
           <Clock size={14} />
           <div>
             <div className="pd-strip-label">Created</div>
-            <div className="pd-strip-value mono">{formatLongDateTime(po.createdAt)}</div>
+            <div className="pd-strip-value mono">
+              {formatLongDateTime(po.createdAt)}
+            </div>
           </div>
         </div>
         <div className="pd-strip-cell">
@@ -245,7 +337,9 @@ export default function PurchaseDetail() {
             <div className="pd-strip-value mono">
               {po.expectedAt
                 ? new Date(po.expectedAt).toLocaleDateString('en-KE', {
-                    day: 'numeric', month: 'short', year: 'numeric',
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
                   })
                 : 'Not set'}
             </div>
@@ -253,7 +347,10 @@ export default function PurchaseDetail() {
         </div>
       </section>
 
-      <Card title="Line items" subtitle={`${po.items.length} product${po.items.length === 1 ? '' : 's'}`}>
+      <Card
+        title="Line items"
+        subtitle={`${po.items.length} product${po.items.length === 1 ? '' : 's'}`}
+      >
         <div className="pd-lines">
           <div className="pd-lines-head">
             <span>Product</span>
@@ -266,7 +363,10 @@ export default function PurchaseDetail() {
             const remaining = i.qty - (i.received || 0);
             const fully = remaining === 0;
             return (
-              <div key={i.productId} className={`pd-line ${fully ? 'done' : ''}`}>
+              <div
+                key={i.productId}
+                className={`pd-line ${fully ? 'done' : ''}`}
+              >
                 <div className="pd-line-prod">
                   <div className="pd-line-name">
                     {i.name}
@@ -282,9 +382,7 @@ export default function PurchaseDetail() {
                 <div className="mono">
                   <strong>{i.received || 0}</strong>
                   {!fully && (
-                    <span className="pd-line-rem">
-                      · {remaining} left
-                    </span>
+                    <span className="pd-line-rem">· {remaining} left</span>
                   )}
                 </div>
                 <div className="mono">{formatKSh(i.buyingPrice)}</div>
@@ -324,7 +422,6 @@ export default function PurchaseDetail() {
         </Card>
       )}
 
-      {/* Receive modal */}
       <Modal
         open={receiveOpen}
         onClose={() => setReceiveOpen(false)}
@@ -333,8 +430,14 @@ export default function PurchaseDetail() {
         size="lg"
         footer={
           <>
-            <Button variant="outline" onClick={() => setReceiveOpen(false)}>Cancel</Button>
-            <Button onClick={doReceive} loading={busy} leftIcon={<PackageCheck size={14} />}>
+            <Button variant="outline" onClick={() => setReceiveOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={doReceive}
+              loading={busy}
+              leftIcon={<PackageCheck size={14} />}
+            >
               Receive now
             </Button>
           </>
@@ -353,7 +456,10 @@ export default function PurchaseDetail() {
               const fully = remaining === 0;
               const value = receiveQty[i.productId] || 0;
               return (
-                <div key={i.productId} className={`pd-receive-row ${fully ? 'done' : ''}`}>
+                <div
+                  key={i.productId}
+                  className={`pd-receive-row ${fully ? 'done' : ''}`}
+                >
                   <div className="pd-receive-prod">
                     <div className="pd-line-name">{i.name}</div>
                     <div className="pd-line-sku mono">
@@ -370,8 +476,14 @@ export default function PurchaseDetail() {
                       className="pd-receive-input mono"
                       value={value}
                       onChange={e => {
-                        const raw = Math.max(0, Math.min(Number(e.target.value) || 0, remaining));
-                        setReceiveQty(prev => ({ ...prev, [i.productId]: raw }));
+                        const raw = Math.max(
+                          0,
+                          Math.min(Number(e.target.value) || 0, remaining)
+                        );
+                        setReceiveQty(prev => ({
+                          ...prev,
+                          [i.productId]: raw,
+                        }));
                       }}
                     />
                   )}
@@ -417,6 +529,15 @@ export default function PurchaseDetail() {
         title="Cancel purchase order"
         message={`Cancel ${po.number}? Any received stock stays in your inventory; the rest will not be delivered against this order.`}
         confirmLabel="Cancel order"
+      />
+
+      <WhatsAppShareModal
+        open={showWhatsApp}
+        onClose={() => setShowWhatsApp(false)}
+        defaultPhone=""
+        message={whatsappMessage}
+        title="Send purchase order on WhatsApp"
+        subtitle={`Supplier: ${po.supplierName}`}
       />
     </div>
   );

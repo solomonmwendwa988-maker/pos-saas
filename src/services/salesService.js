@@ -13,6 +13,11 @@ class SalesService {
     if (filters.method && filters.method !== 'all') {
       rows = rows.filter(o => o.method === filters.method);
     }
+    if (filters.paymentStatus && filters.paymentStatus !== 'all') {
+      rows = rows.filter(
+        o => (o.paymentStatus || 'paid') === filters.paymentStatus
+      );
+    }
     if (filters.customerId) {
       rows = rows.filter(o => o.customerId === filters.customerId);
     }
@@ -53,6 +58,12 @@ class SalesService {
 
     const { productService } = await import('./productService');
     const { customerService } = await import('./customerService');
+    const { customerLedgerService } = await import('./customerLedgerService');
+
+    const onCredit = method === 'On credit';
+    if (onCredit && !customerId) {
+      throw new Error('Select a customer to sell on credit.');
+    }
 
     const orders = storage.read(KEY, []);
     const nextNumber =
@@ -87,8 +98,9 @@ class SalesService {
       tax,
       discount: discount || 0,
       total,
-      method,
+      method: onCredit ? 'On credit' : method,
       reference: reference || null,
+      paymentStatus: onCredit ? 'credit' : 'paid',
       status: 'COMPLETED',
       cashier: cashier || 'Owner',
       shiftId: shiftId || null,
@@ -96,6 +108,18 @@ class SalesService {
 
     orders.unshift(order);
     storage.write(KEY, orders);
+
+    // Create the ledger entry for the credit sale
+    if (onCredit && customerId) {
+      await customerLedgerService.recordCreditSale({
+        customerId,
+        amount: total,
+        reference: `#${order.id}`,
+        orderId: order.id,
+        createdBy: order.cashier,
+      });
+    }
+
     eventBus.emit(EVENTS.SALE_COMPLETED, order);
     return order;
   }
@@ -103,6 +127,8 @@ class SalesService {
   async refund(id) {
     await wait(300);
     const { productService } = await import('./productService');
+    const { customerLedgerService } = await import('./customerLedgerService');
+
     const orders = storage.read(KEY, []);
     const order = orders.find(o => o.id === id);
     if (!order) throw new Error('Order not found.');
@@ -114,6 +140,14 @@ class SalesService {
       +1,
       { type: 'return', reference: `#${id} refund` }
     );
+
+    // Reverse the credit entry if it was a credit sale
+    if (order.paymentStatus === 'credit' && order.customerId) {
+      await customerLedgerService.reverseCreditSale({
+        orderId: order.id,
+        customerId: order.customerId,
+      });
+    }
 
     const next = orders.map(o =>
       o.id === id
@@ -127,11 +161,26 @@ class SalesService {
     return updated;
   }
 
+  /** Marks a credit sale as paid. Does NOT create a ledger entry —
+   *  payments are always recorded through customerLedgerService. */
+  async markPaid(id) {
+    await wait(80);
+    const orders = storage.read(KEY, []);
+    const next = orders.map(o =>
+      o.id === id ? { ...o, paymentStatus: 'paid' } : o
+    );
+    storage.write(KEY, next);
+    return next.find(o => o.id === id);
+  }
+
   async summary() {
     await wait(80);
     const orders = storage.read(KEY, []);
     const completed = orders.filter(o => o.status === 'COMPLETED');
     const revenue = completed.reduce((s, o) => s + o.total, 0);
+    const creditSales = completed
+      .filter(o => o.paymentStatus === 'credit')
+      .reduce((s, o) => s + o.total, 0);
     const refunded = orders
       .filter(o => o.status === 'REFUNDED')
       .reduce((s, o) => s + o.total, 0);
@@ -140,6 +189,7 @@ class SalesService {
       count: orders.length,
       avgOrder: completed.length ? Math.round(revenue / completed.length) : 0,
       refunded,
+      creditSales,
     };
   }
 

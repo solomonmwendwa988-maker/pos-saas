@@ -15,14 +15,25 @@ class CustomerService {
     );
   }
 
+  async listWithBalances(search = '') {
+    const [{ customerLedgerService }] = await Promise.all([
+      import('./customerLedgerService'),
+    ]);
+    const items = await this.list(search);
+    const balances = customerLedgerService.allBalances();
+    return items.map(c => ({ ...c, balance: balances[c.id] || 0 }));
+  }
+
   async get(id) {
     await wait(150);
     const customer = storage.read(KEY, []).find(c => c.id === id);
     if (!customer) return null;
-    // Pull order history from salesService lazily to avoid a cycle.
     const { salesService } = await import('./salesService');
+    const { customerLedgerService } = await import('./customerLedgerService');
     const history = await salesService.list({ customerId: id });
-    return { ...customer, history };
+    const ledger = customerLedgerService.forCustomer(id);
+    const balance = customerLedgerService.balanceFor(id);
+    return { ...customer, history, ledger, balance };
   }
 
   async create(payload) {
@@ -52,14 +63,18 @@ class CustomerService {
 
   async remove(id) {
     await wait(200);
+    const { customerLedgerService } = await import('./customerLedgerService');
+    const balance = customerLedgerService.balanceFor(id);
+    if (Math.abs(balance) > 0.01) {
+      throw new Error(
+        `Cannot delete: customer has an outstanding balance of KSh ${balance.toLocaleString()}.`
+      );
+    }
     const items = storage.read(KEY, []).filter(c => c.id !== id);
     storage.write(KEY, items);
     return { id };
   }
 
-  /**
-   * Called internally by salesService when an order completes.
-   */
   async recordPurchase(customerId, amount, when = new Date().toISOString()) {
     const items = storage.read(KEY, []);
     const next = items.map(c =>

@@ -2,44 +2,65 @@ import { NavLink, Link, useNavigate } from 'react-router-dom';
 import {
   BarChart3, Bell, Boxes, ChevronLeft, ChevronRight, Clock, CreditCard,
   FileText, HelpCircle, LayoutDashboard, LogOut, Package, Receipt, Settings,
-  ShoppingCart, Tag, Truck, User, Users,
+  ShoppingBag, ShoppingCart, Tag, Truck, User, Users,
 } from 'lucide-react';
 import Logo from '../common/Logo';
 import Badge from '../common/Badge';
 import { useAuth } from '@/context/AuthContext';
 import { useSubscription } from '@/context/SubscriptionContext';
 import { getInitials } from '@/utils/image';
+import { ROLE_LABELS } from '@/config/permissions';
 import './Sidebar.css';
 
-const main = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/pos', label: 'POS', icon: ShoppingCart },
-  { to: '/sales', label: 'Sales', icon: Receipt },
-  { to: '/shifts', label: 'Shifts', icon: Clock },
-  { to: '/products', label: 'Products', icon: Package },
-  { to: '/inventory', label: 'Inventory', icon: Boxes },
-  { to: '/categories', label: 'Categories', icon: Tag },
-  { to: '/customers', label: 'Customers', icon: Users },
-  { to: '/suppliers', label: 'Suppliers', icon: Truck },
-  { to: '/reports', label: 'Reports', icon: FileText },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+const MAIN = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: 'dashboard.view' },
+  { to: '/pos', label: 'POS', icon: ShoppingCart, perm: 'pos.use' },
+  { to: '/sales', label: 'Sales', icon: Receipt, perm: 'sales.view' },
+  { to: '/shifts', label: 'Shifts', icon: Clock, perm: 'shifts.view' },
+  { to: '/products', label: 'Products', icon: Package, perm: 'products.view' },
+  { to: '/inventory', label: 'Inventory', icon: Boxes, perm: 'inventory.view' },
+  { to: '/categories', label: 'Categories', icon: Tag, perm: 'categories.view' },
+  { to: '/customers', label: 'Customers', icon: Users, perm: 'customers.view' },
+  { to: '/suppliers', label: 'Suppliers', icon: Truck, perm: 'suppliers.view' },
+  { to: '/purchases', label: 'Purchases', icon: ShoppingBag, perm: 'purchases.view' },
+  { to: '/reports', label: 'Reports', icon: FileText, perm: 'reports.view' },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3, perm: 'analytics.view' },
 ];
 
-const secondary = [
-  { to: '/settings/business', label: 'Settings', icon: Settings },
-  { to: '/subscription', label: 'Subscription', icon: CreditCard },
-  { to: '/profile', label: 'Profile', icon: User },
-  { to: '/notifications', label: 'Notifications', icon: Bell },
-  { to: '/help', label: 'Help & Support', icon: HelpCircle },
+const SECONDARY = [
+  { to: '/settings/business', label: 'Settings', icon: Settings, perm: 'settings.update' },
+  { to: '/subscription', label: 'Subscription', icon: CreditCard, perm: 'subscription.view' },
+  { to: '/profile', label: 'Profile', icon: User, perm: 'profile.edit' },
+  { to: '/notifications', label: 'Notifications', icon: Bell, perm: 'notifications.view' },
+  { to: '/help', label: 'Help & Support', icon: HelpCircle, perm: 'help.view' },
 ];
 
-function daysWord(n) {
-  return n === 1 ? 'day' : 'days';
+const DAY_MS = 86400000;
+
+function daysFromIso(iso) {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return 0;
+  const diff = t - Date.now();
+  return Math.max(0, Math.ceil(diff / DAY_MS));
 }
 
-export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile }) {
-  const { user, logout } = useAuth();
-  const { subscription, trialDaysLeft, daysUntilCycleEnd } = useSubscription();
+function plural(n, word) {
+  return n === 1 ? word : `${word}s`;
+}
+
+export default function Sidebar({
+  collapsed,
+  onToggle,
+  mobileOpen,
+  onCloseMobile,
+}) {
+  const { user, logout, isOwner, can } = useAuth();
+  const {
+    subscription,
+    trialDaysLeft: ctxTrialDays,
+    daysUntilCycleEnd: ctxCycleDays,
+  } = useSubscription();
   const nav = useNavigate();
 
   const doLogout = async () => {
@@ -47,30 +68,40 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
     nav('/login', { replace: true });
   };
 
-  const roleLabel =
-    user?.role === 'OWNER' ? 'Owner'
-    : user?.role === 'MANAGER' ? 'Manager'
-    : user?.role === 'CASHIER' ? 'Cashier'
-    : user?.role || 'Owner';
-
+  const roleLabel = ROLE_LABELS[user?.role] || user?.role || 'Owner';
   const displayName = user?.fullName?.trim() || 'Your account';
 
-  // ---------- Plan card content (state-aware) ----------
+  const visibleMain = MAIN.filter(item => !item.perm || can(item.perm));
+  const visibleSecondary = SECONDARY.filter(item => {
+    if (item.to === '/subscription') return isOwner();
+    if (!item.perm) return true;
+    return can(item.perm);
+  });
+
+  // ---------- Plan card content ----------
   let planTag = 'Free trial';
-  let planTagTone = 'warning';
   let planText = 'Upgrade anytime to keep your shop running.';
   let planCtaLabel = 'Upgrade plan';
   let planBadge = null;
   let planCardTone = 'trial';
 
   if (subscription) {
+    // Compute days inline from subscription dates as the single source of truth.
+    // Context values are used only if they are valid numbers.
+    const cycleDays = Number.isFinite(ctxCycleDays) && ctxCycleDays > 0
+      ? ctxCycleDays
+      : daysFromIso(subscription.cycleEnd);
+
+    const trialDays = Number.isFinite(ctxTrialDays) && ctxTrialDays >= 0
+      ? ctxTrialDays
+      : daysFromIso(subscription.trialEnd);
+
     if (subscription.status === 'active') {
-      planTag = subscription.plan.name + ' plan';
-      planTagTone = 'success';
+      planTag = `${subscription.plan?.name || 'Plan'} plan`;
       planCardTone = 'active';
       planBadge = (
         <Badge tone="success">
-          {daysUntilCycleEnd} {daysWord(daysUntilCycleEnd)} left
+          {cycleDays} {plural(cycleDays, 'day')} left
         </Badge>
       );
       planText = `Renews on ${new Date(subscription.cycleEnd).toLocaleDateString(
@@ -80,18 +111,16 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
       planCtaLabel = 'Manage plan';
     } else if (subscription.status === 'cancelled') {
       planTag = 'Cancelled';
-      planTagTone = 'danger';
       planCardTone = 'cancelled';
       planBadge = (
         <Badge tone="danger">
-          {daysUntilCycleEnd} {daysWord(daysUntilCycleEnd)} left
+          {cycleDays} {plural(cycleDays, 'day')} left
         </Badge>
       );
-      planText = `Access ends in ${daysUntilCycleEnd} ${daysWord(daysUntilCycleEnd)}.`;
+      planText = `Access ends in ${cycleDays} ${plural(cycleDays, 'day')}.`;
       planCtaLabel = 'Reactivate';
     } else if (subscription.status === 'pending') {
       planTag = 'Payment pending';
-      planTagTone = 'info';
       planCardTone = 'pending';
       planBadge = <Badge tone="info">Pending</Badge>;
       planText = 'Waiting for M-Pesa confirmation.';
@@ -100,28 +129,33 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
       // trial
       planBadge = (
         <Badge tone="warning">
-          {trialDaysLeft} {daysWord(trialDaysLeft)}
+          {trialDays} {plural(trialDays, 'day')}
         </Badge>
       );
       planText =
-        trialDaysLeft > 0
-          ? `Free trial · ${trialDaysLeft} ${daysWord(trialDaysLeft)} remaining.`
+        trialDays > 0
+          ? `Free trial · ${trialDays} ${plural(trialDays, 'day')} remaining.`
           : 'Your free trial has ended.';
-      planCtaLabel = trialDaysLeft > 0 ? 'Upgrade plan' : 'Choose a plan';
+      planCtaLabel = trialDays > 0 ? 'Upgrade plan' : 'Choose a plan';
     }
   }
+
+  const showPlanCard = !collapsed && subscription && isOwner();
 
   return (
     <>
       <aside className={`side ${mobileOpen ? 'side-mobile-open' : ''}`}>
         <div className="side-brand">
-          <Link to="/dashboard" aria-label="Sokoni home">
+          <Link
+            to={isOwner() || can('dashboard.view') ? '/dashboard' : '/pos'}
+            aria-label="Sokoni home"
+          >
             {collapsed ? <div className="side-logo-mini">S</div> : <Logo light />}
           </Link>
         </div>
 
         <nav className="side-nav" aria-label="Main">
-          {main.map(({ to, label, icon: Icon }) => (
+          {visibleMain.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -138,7 +172,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
         <div className="side-divider" />
 
         <nav className="side-nav" aria-label="Account">
-          {secondary.map(({ to, label, icon: Icon }) => (
+          {visibleSecondary.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
@@ -153,7 +187,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
         </nav>
 
         <div className="side-foot">
-          {!collapsed && subscription && (
+          {showPlanCard && (
             <div className={`side-plan side-plan-${planCardTone}`}>
               <div className="side-plan-head">
                 <span className="side-plan-tag">{planTag}</span>

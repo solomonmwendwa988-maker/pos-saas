@@ -4,7 +4,13 @@ import Modal from '@/components/common/Modal';
 import Button from '@/components/common/Button';
 import Badge from '@/components/common/Badge';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
+import WhatsAppShareModal from '@/components/common/WhatsAppShareModal';
+import WhatsAppIcon from '@/components/common/WhatsAppIcon';
+import { pdfService } from '@/services/pdfService';
+import { whatsappService } from '@/services/whatsappService';
+import { customerService } from '@/services/customerService';
 import { useBusiness } from '@/context/BusinessContext';
+import { useToast } from '@/context/ToastContext';
 import { formatKSh } from '@/utils/format';
 
 const statusTone = {
@@ -16,8 +22,12 @@ const statusTone = {
 
 export default function OrderDetail({ open, order, onClose, onRefund }) {
   const { business } = useBusiness();
+  const toast = useToast();
   const [confirmRefund, setConfirmRefund] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [whatsappOpen, setWhatsappOpen] = useState(false);
+  const [customerPhone, setCustomerPhone] = useState('');
 
   if (!order) return null;
 
@@ -36,6 +46,77 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
     }
   };
 
+  const downloadInvoice = async () => {
+    setDownloading(true);
+    try {
+      const pdfItems = items.map(i => ({
+        description: i.name,
+        qty: i.qty,
+        unitPrice: i.price,
+        total: i.qty * i.price,
+      }));
+
+      const totalsMap = { Subtotal: subtotal, 'VAT (16%)': tax };
+      if (order.discount > 0) totalsMap.Discount = -order.discount;
+      totalsMap.Total = order.total;
+
+      const meta = [
+        { label: 'Payment', value: order.method || '—' },
+        { label: 'Cashier', value: order.cashier || 'Owner' },
+        { label: 'Status', value: order.status },
+      ];
+      if (order.reference) {
+        meta.push({ label: 'Reference', value: order.reference });
+      }
+
+      const blob = await pdfService.generateInvoicePdf({
+        documentType: order.status === 'REFUNDED' ? 'REFUND' : 'INVOICE',
+        documentNumber: `#${order.id}`,
+        issuedDate: order.date,
+        business,
+        partyLabel: 'Bill to',
+        party: { name: order.customer || 'Walk-in customer' },
+        items: pdfItems,
+        totals: totalsMap,
+        notes:
+          order.paymentStatus === 'credit'
+            ? `Charged to ${order.customer}. Please settle at your earliest convenience.`
+            : 'Thank you for your business.',
+        meta,
+      });
+
+      pdfService.downloadBlob(blob, `invoice-${order.id}.pdf`);
+      toast.success('Invoice downloaded.');
+    } catch (err) {
+      toast.error(err.message || 'Could not generate invoice.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const openWhatsApp = async () => {
+    // Try to pre-fill the phone from the customer record.
+    let phone = '';
+    if (order.customerId) {
+      try {
+        const customer = await customerService.get(order.customerId);
+        if (customer?.phone) phone = customer.phone;
+      } catch {
+        // ignore — the cashier can type the number manually
+      }
+    }
+    setCustomerPhone(phone);
+    setWhatsappOpen(true);
+  };
+
+  const whatsappMessage = whatsappService.buildReceiptMessage({
+    business,
+    order,
+    footerNote: business.receiptFooter || 'Thank you for shopping with us.',
+  });
+
+  const handlePrint = () => window.print();
+
   return (
     <>
       <Modal
@@ -46,11 +127,27 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
         size="lg"
         footer={
           <>
-            <Button variant="outline" leftIcon={<Printer size={14} />} onClick={() => window.print()}>
-              Print receipt
+            <Button
+              variant="outline"
+              leftIcon={<Printer size={14} />}
+              onClick={handlePrint}
+            >
+              Print
             </Button>
-            <Button variant="outline" leftIcon={<Download size={14} />}>
-              Download
+            <Button
+              variant="outline"
+              leftIcon={<Download size={14} />}
+              loading={downloading}
+              onClick={downloadInvoice}
+            >
+              Invoice PDF
+            </Button>
+            <Button
+              variant="outline"
+              leftIcon={<WhatsAppIcon size={14} />}
+              onClick={openWhatsApp}
+            >
+              WhatsApp
             </Button>
             {order.status === 'COMPLETED' && (
               <Button
@@ -68,11 +165,15 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
           <div className="od-head print-hide">
             <div>
               <div className="muted" style={{ fontSize: 12 }}>Customer</div>
-              <div className="bold" style={{ fontSize: 15 }}>{order.customer}</div>
+              <div className="bold" style={{ fontSize: 15 }}>
+                {order.customer}
+              </div>
             </div>
             <div>
               <div className="muted" style={{ fontSize: 12 }}>Payment</div>
-              <div className="bold" style={{ fontSize: 15 }}>{order.method}</div>
+              <div className="bold" style={{ fontSize: 15 }}>
+                {order.paymentStatus === 'credit' ? 'On credit' : order.method}
+              </div>
             </div>
             <div>
               <div className="muted" style={{ fontSize: 12 }}>Status</div>
@@ -81,7 +182,9 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
             {order.reference && (
               <div>
                 <div className="muted" style={{ fontSize: 12 }}>Reference</div>
-                <div className="mono bold" style={{ fontSize: 13 }}>{order.reference}</div>
+                <div className="mono bold" style={{ fontSize: 13 }}>
+                  {order.reference}
+                </div>
               </div>
             )}
           </div>
@@ -91,7 +194,9 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
               <span>Item</span>
               <span className="mono">Qty</span>
               <span className="mono">Price</span>
-              <span className="mono" style={{ textAlign: 'right' }}>Total</span>
+              <span className="mono" style={{ textAlign: 'right' }}>
+                Total
+              </span>
             </div>
             {items.map((it, i) => (
               <div key={i} className="od-row">
@@ -106,10 +211,19 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
           </div>
 
           <div className="od-totals">
-            <div className="od-total-row"><span>Subtotal</span><span className="mono">{formatKSh(subtotal)}</span></div>
-            <div className="od-total-row"><span>VAT</span><span className="mono">{formatKSh(tax)}</span></div>
+            <div className="od-total-row">
+              <span>Subtotal</span>
+              <span className="mono">{formatKSh(subtotal)}</span>
+            </div>
+            <div className="od-total-row">
+              <span>VAT (16%)</span>
+              <span className="mono">{formatKSh(tax)}</span>
+            </div>
             {order.discount > 0 && (
-              <div className="od-total-row"><span>Discount</span><span className="mono">-{formatKSh(order.discount)}</span></div>
+              <div className="od-total-row">
+                <span>Discount</span>
+                <span className="mono">-{formatKSh(order.discount)}</span>
+              </div>
             )}
             <div className="od-total-row grand">
               <span>Total</span>
@@ -118,17 +232,25 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
           </div>
 
           <div className="od-receipt print-area">
-            <div className="od-receipt-brand">{business.name || 'Your Business'}</div>
+            <div className="od-receipt-brand">
+              {business.name || 'Your Business'}
+            </div>
             {(business.location || business.phone) && (
               <div className="od-receipt-meta">
-                {[business.location, business.phone].filter(Boolean).join(' · ')}
+                {[business.location, business.phone]
+                  .filter(Boolean)
+                  .join(' · ')}
               </div>
             )}
             <div className="od-receipt-meta">
               Order #{order.id} · {order.date}
             </div>
             <div className="od-receipt-meta">
-              Paid via {order.method}{order.reference ? ` · Ref ${order.reference}` : ''}
+              {order.paymentStatus === 'credit'
+                ? `On credit — ${order.customer}`
+                : `Paid via ${order.method}${
+                    order.reference ? ` · Ref ${order.reference}` : ''
+                  }`}
             </div>
           </div>
         </div>
@@ -140,6 +262,7 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
             background: var(--bg-soft); border-radius: 12px;
           }
           @media (max-width: 720px) { .od-head { grid-template-columns: 1fr 1fr; } }
+
           .od-items { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
           .od-items-head {
             display: grid; grid-template-columns: 2fr 60px 110px 120px;
@@ -154,22 +277,30 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
             border-bottom: 1px solid var(--border);
           }
           .od-row:last-child { border-bottom: 0; }
+
           .od-totals {
             display: flex; flex-direction: column; gap: 8px;
             padding: 4px 4px 0; font-size: 13.5px;
           }
-          .od-total-row { display: flex; justify-content: space-between; color: var(--text-muted); }
+          .od-total-row {
+            display: flex; justify-content: space-between;
+            color: var(--text-muted);
+          }
           .od-total-row.grand {
             color: var(--text); font-size: 16px; font-weight: 800;
-            padding-top: 10px; border-top: 1px dashed var(--border-strong); margin-top: 4px;
+            padding-top: 10px; border-top: 1px dashed var(--border-strong);
+            margin-top: 4px;
           }
+
           .od-receipt {
             border: 1px dashed var(--border-strong); border-radius: 12px;
             padding: 14px; text-align: center;
             font-family: 'Courier New', monospace;
           }
           .od-receipt-brand { font-weight: 700; font-size: 15px; }
-          .od-receipt-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 4px; }
+          .od-receipt-meta {
+            font-size: 11.5px; color: var(--text-muted); margin-top: 4px;
+          }
         `}</style>
       </Modal>
 
@@ -184,6 +315,15 @@ export default function OrderDetail({ open, order, onClose, onRefund }) {
             : `Refund #${order.id} for ${formatKSh(order.total)}? Stock will be restored and M-Pesa will be reversed if applicable.`
         }
         confirmLabel={busy ? 'Refunding…' : 'Refund order'}
+      />
+
+      <WhatsAppShareModal
+        open={whatsappOpen}
+        onClose={() => setWhatsappOpen(false)}
+        defaultPhone={customerPhone}
+        customerName={order.customer}
+        message={whatsappMessage}
+        title="Send receipt on WhatsApp"
       />
     </>
   );

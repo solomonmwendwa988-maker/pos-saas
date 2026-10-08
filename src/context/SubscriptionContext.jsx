@@ -15,6 +15,20 @@ import { useAuth } from './AuthContext';
 
 const SubscriptionContext = createContext(null);
 
+const DAY_MS = 86400000;
+
+/**
+ * Returns the number of days between now and an ISO date string.
+ * Never returns NaN — clamps to a safe integer.
+ */
+function daysUntil(iso) {
+  if (!iso) return 0;
+  const target = new Date(iso).getTime();
+  if (!Number.isFinite(target)) return 0;
+  const diff = target - Date.now();
+  return Math.max(0, Math.ceil(diff / DAY_MS));
+}
+
 export function SubscriptionProvider({ children }) {
   const { isAuthenticated } = useAuth();
   const [subscription, setSubscription] = useState(null);
@@ -38,20 +52,16 @@ export function SubscriptionProvider({ children }) {
       const cashiers = new Set(
         (orders || []).map(o => o.cashier).filter(Boolean)
       );
-      const next = {
+      setUsage({
         tills: Math.max(1, cashiers.size),
         products: products?.length || 0,
         customers: customers?.length || 0,
         teamMembers: 1,
         branches: 1,
-      };
-      setUsage(next);
-      return next;
+      });
     } catch (err) {
-      // Usage counting is best-effort. Never let it block the app.
       // eslint-disable-next-line no-console
       console.warn('[subscription] usage refresh failed', err);
-      return null;
     }
   }, []);
 
@@ -62,33 +72,36 @@ export function SubscriptionProvider({ children }) {
     }
     setLoading(true);
     setError(null);
-
     try {
       const sub = await subscriptionService.current();
       setSubscription(sub);
-      // Fire usage refresh in the background — never block the page on it.
       refreshUsage();
       return sub;
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('[subscription] refresh failed', err);
       setError(err);
-      // Fallback so the UI still renders instead of hanging on skeletons.
       setSubscription({
         planId: 'starter',
         status: 'trial',
         billingCycle: 'monthly',
         trialStart: new Date().toISOString(),
-        trialEnd: new Date(Date.now() + 3 * 86400000).toISOString(),
+        trialEnd: new Date(Date.now() + 3 * DAY_MS).toISOString(),
         cycleStart: new Date().toISOString(),
-        cycleEnd: new Date(Date.now() + 3 * 86400000).toISOString(),
+        cycleEnd: new Date(Date.now() + 3 * DAY_MS).toISOString(),
         plan: {
           id: 'starter',
           name: 'Starter',
           price: 999,
           tagline: 'For small shops just getting started',
           icon: 'Store',
-          limits: { tills: 1, products: 300, customers: 100, teamMembers: 1, branches: 1 },
+          limits: {
+            tills: 1,
+            products: 300,
+            customers: 100,
+            teamMembers: 1,
+            branches: 1,
+          },
           features: [],
           highlight: [],
         },
@@ -105,18 +118,19 @@ export function SubscriptionProvider({ children }) {
     refresh();
   }, [refresh]);
 
-  // Re-render whenever the subscription service mutates
   useEffect(() => {
     const off = eventBus.on('subscription:changed', s => {
       try {
         setSubscription(subscriptionService._enrich(s));
-      } catch (err) {
+      } catch {
         setSubscription(s);
       }
       refreshUsage();
     });
     return off;
   }, [refreshUsage]);
+
+  // ---------- Mutations ----------
 
   const changePlan = useCallback(async payload => {
     const result = await subscriptionService.changePlan(payload);
@@ -148,16 +162,22 @@ export function SubscriptionProvider({ children }) {
     return sub;
   }, []);
 
-  // ---------- Derived helpers ----------
+  // ---------- Derived ----------
+
   const isInTrial = subscription?.status === 'trial';
   const isActive = subscription?.status === 'active';
   const isCancelled = subscription?.status === 'cancelled';
+  const isPending = subscription?.status === 'pending';
 
-  const trialDaysLeft = useMemo(() => {
-    if (!subscription?.trialEnd) return 0;
-    const diff = new Date(subscription.trialEnd).getTime() - Date.now();
-    return Math.max(0, Math.ceil(diff / 86400000));
-  }, [subscription?.trialEnd]);
+  const trialDaysLeft = useMemo(
+    () => daysUntil(subscription?.trialEnd),
+    [subscription?.trialEnd]
+  );
+
+  const daysUntilCycleEnd = useMemo(
+    () => daysUntil(subscription?.cycleEnd),
+    [subscription?.cycleEnd]
+  );
 
   const trialExpired = isInTrial && trialDaysLeft === 0;
 
@@ -190,7 +210,9 @@ export function SubscriptionProvider({ children }) {
       isInTrial,
       isActive,
       isCancelled,
+      isPending,
       trialDaysLeft,
+      daysUntilCycleEnd,
       trialExpired,
       limits,
       exceedsLimit,
@@ -211,7 +233,9 @@ export function SubscriptionProvider({ children }) {
       isInTrial,
       isActive,
       isCancelled,
+      isPending,
       trialDaysLeft,
+      daysUntilCycleEnd,
       trialExpired,
       limits,
       exceedsLimit,
@@ -235,6 +259,8 @@ export function SubscriptionProvider({ children }) {
 
 export function useSubscription() {
   const ctx = useContext(SubscriptionContext);
-  if (!ctx) throw new Error('useSubscription must be used inside SubscriptionProvider');
+  if (!ctx) {
+    throw new Error('useSubscription must be used inside SubscriptionProvider');
+  }
   return ctx;
 }

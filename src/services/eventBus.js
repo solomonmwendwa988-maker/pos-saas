@@ -33,4 +33,7 @@ export const EVENTS = {
   PO_CREATED: 'po:created',
   PO_UPDATED: 'po:updated',
   SUPPLIER_PAYMENT: 'supplier:payment',
+  CUSTOMER_PAYMENT: 'customer:payment',
+  CUSTOMER_LEDGER_CHANGED: 'customer:ledger-changed',
+  CUSTOMER_CHANGED: 'customer:changed',
 };
