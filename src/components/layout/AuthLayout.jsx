@@ -1,5 +1,5 @@
-// AuthLayout.jsx
 import { Link } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import Logo from '../common/Logo';
 import './AuthLayout.css';
 
@@ -8,7 +8,9 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
     <div className="auth">
       <aside className="auth-aside">
         <div className="auth-aside-inner">
-          <Link to="/" aria-label="Home"><Logo light /></Link>
+          <Link to="/" aria-label="Back to Sokoni home">
+            <Logo light />
+          </Link>
           <div className="auth-aside-copy">
             <h2 className="auth-aside-title">
               Sell faster. Track stock. Grow with confidence.
@@ -29,6 +31,11 @@ export default function AuthLayout({ title, subtitle, children, footer }) {
       </aside>
 
       <main className="auth-main">
+        <Link to="/" className="auth-back" aria-label="Back to home page">
+          <ArrowLeft size={15} />
+          <span>Back to home</span>
+        </Link>
+
         <div className="auth-card fade-up">
           <header className="auth-header">
             <h1 className="auth-title">{title}</h1>

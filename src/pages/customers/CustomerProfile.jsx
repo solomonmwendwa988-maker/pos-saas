@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft, Calendar, DollarSign, FileText, Mail, Phone, ShoppingCart, Wallet,
+  ArrowLeft, Calendar, DollarSign, FileText, Mail, Phone, ShoppingCart,
+  Sparkles, Wallet,
 } from 'lucide-react';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
@@ -12,6 +13,7 @@ import RecordPaymentModal from '@/components/customers/RecordPaymentModal';
 import LedgerTable from '@/components/customers/LedgerTable';
 import { customerService } from '@/services/customerService';
 import { customerLedgerService } from '@/services/customerLedgerService';
+import { loyaltyService } from '@/services/loyaltyService';
 import { pdfService } from '@/services/pdfService';
 import { eventBus, EVENTS } from '@/services/eventBus';
 import { computeCustomerAging } from '@/utils/aging';
@@ -47,6 +49,9 @@ export default function CustomerProfile() {
   const [aging, setAging] = useState(null);
   const [balance, setBalance] = useState(0);
 
+  const [loyaltyHistory, setLoyaltyHistory] = useState([]);
+  const [loyaltyBal, setLoyaltyBal] = useState(0);
+
   const [showPayment, setShowPayment] = useState(false);
   const [statementBusy, setStatementBusy] = useState(false);
 
@@ -59,6 +64,10 @@ export default function CustomerProfile() {
       setLedger(entries);
       setBalance(customerLedgerService.balanceFor(id));
       setAging(computeCustomerAging(entries));
+
+      const loyaltyEntries = loyaltyService.history(id);
+      setLoyaltyHistory(loyaltyEntries);
+      setLoyaltyBal(loyaltyService.balance(id));
     }
     setLoading(false);
   }, [id]);
@@ -68,10 +77,14 @@ export default function CustomerProfile() {
   }, [load]);
 
   useEffect(() => {
-    const off = eventBus.on(EVENTS.CUSTOMER_LEDGER_CHANGED, payload => {
+    const offLedger = eventBus.on(EVENTS.CUSTOMER_LEDGER_CHANGED, payload => {
       if (!payload || payload.customerId === id) load();
     });
-    return off;
+    const offSale = eventBus.on(EVENTS.SALE_COMPLETED, load);
+    return () => {
+      offLedger();
+      offSale();
+    };
   }, [id, load]);
 
   const downloadStatement = async () => {
@@ -177,7 +190,11 @@ export default function CustomerProfile() {
   }
 
   const orderColumns = [
-    { key: 'id', label: 'Order', render: o => <span className="bold">#{o.id}</span> },
+    {
+      key: 'id',
+      label: 'Order',
+      render: o => <span className="bold">#{o.id}</span>,
+    },
     {
       key: 'date',
       label: 'Date',
@@ -200,6 +217,9 @@ export default function CustomerProfile() {
       render: o => {
         if (o.paymentStatus === 'credit') {
           return <Badge tone="warning">On credit</Badge>;
+        }
+        if (o.payments && o.payments.length > 1) {
+          return <Badge tone="info">Split</Badge>;
         }
         return (
           <Badge tone={o.method === 'M-Pesa' ? 'primary' : 'neutral'}>
@@ -283,12 +303,11 @@ export default function CustomerProfile() {
           tone="primary"
         />
         <StatCard
-          label="Average order"
-          value={formatKSh(
-            customer.orders ? Math.round(customer.spent / customer.orders) : 0
-          )}
-          icon={Wallet}
+          label="Loyalty points"
+          value={loyaltyBal}
+          icon={Sparkles}
           tone="info"
+          sub={`Worth ${formatKSh(loyaltyService.pointsToValue(loyaltyBal))}`}
         />
       </section>
 
@@ -333,9 +352,19 @@ export default function CustomerProfile() {
             <span className="cp-tab-badge">{ledger.length}</span>
           )}
         </button>
+        <button
+          type="button"
+          className={`cp-tab ${tab === 'loyalty' ? 'on' : ''}`}
+          onClick={() => setTab('loyalty')}
+        >
+          Loyalty
+          {loyaltyBal > 0 && (
+            <span className="cp-tab-badge">{loyaltyBal}</span>
+          )}
+        </button>
       </div>
 
-      {tab === 'orders' ? (
+      {tab === 'orders' && (
         <Card padding="md">
           <Table
             columns={orderColumns}
@@ -343,9 +372,62 @@ export default function CustomerProfile() {
             empty="No purchase history yet."
           />
         </Card>
-      ) : (
+      )}
+
+      {tab === 'ledger' && (
         <Card padding="md">
           <LedgerTable entries={ledger} />
+        </Card>
+      )}
+
+      {tab === 'loyalty' && (
+        <Card
+          padding="md"
+          title="Loyalty history"
+          subtitle={`${loyaltyBal} points · worth ${formatKSh(loyaltyService.pointsToValue(loyaltyBal))}`}
+        >
+          {loyaltyHistory.length === 0 ? (
+            <div className="loyalty-empty">
+              <Sparkles size={26} />
+              <p>No loyalty activity yet</p>
+              <span className="muted">
+                Points are earned automatically on every paid sale.
+              </span>
+            </div>
+          ) : (
+            <div className="loyalty-list">
+              {loyaltyHistory.map(e => (
+                <div key={e.id} className="loyalty-row">
+                  <span
+                    className={`loyalty-points ${e.points > 0 ? 'up' : 'down'}`}
+                  >
+                    {e.points > 0 ? '+' : ''}
+                    {e.points}
+                  </span>
+                  <div className="loyalty-body">
+                    <div className="loyalty-reason">
+                      {e.type === 'earn'
+                        ? `Earned on ${formatKSh(e.amount)}`
+                        : e.type === 'redeem'
+                        ? `Redeemed for ${formatKSh(Math.abs(e.amount))}`
+                        : 'Adjustment'}
+                      {e.reference && (
+                        <span className="muted"> · {e.reference}</span>
+                      )}
+                    </div>
+                    <div className="loyalty-time">
+                      {new Date(e.createdAt).toLocaleString('en-KE', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Card>
       )}
 
@@ -404,6 +486,38 @@ export default function CustomerProfile() {
           padding: 1px 8px; border-radius: 999px;
           font-size: 11px; font-weight: 700;
         }
+
+        .loyalty-list { display: flex; flex-direction: column; gap: 4px; }
+        .loyalty-row {
+          display: flex; gap: 12px; align-items: center;
+          padding: 10px 4px;
+          border-bottom: 1px dashed var(--border);
+        }
+        .loyalty-row:last-child { border-bottom: 0; }
+        .loyalty-points {
+          min-width: 56px; text-align: right;
+          font-family: var(--font-display);
+          font-weight: 800;
+          font-size: 14px;
+          font-variant-numeric: tabular-nums;
+        }
+        .loyalty-points.up { color: var(--success); }
+        .loyalty-points.down { color: var(--danger); }
+        .loyalty-body { flex: 1; min-width: 0; }
+        .loyalty-reason { font-size: 13px; }
+        .loyalty-time {
+          font-size: 11.5px; color: var(--text-faint); margin-top: 2px;
+        }
+        .loyalty-empty {
+          display: flex; flex-direction: column; align-items: center;
+          gap: 8px; padding: 40px 20px; text-align: center;
+          color: var(--text-faint);
+        }
+        .loyalty-empty p {
+          margin: 6px 0 0; font-weight: 700;
+          color: var(--text-muted); font-size: 14px;
+        }
+        .loyalty-empty .muted { font-size: 12.5px; }
       `}</style>
     </div>
   );

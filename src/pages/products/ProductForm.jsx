@@ -66,24 +66,26 @@ export default function ProductForm({
           value={form.sku}
           onChange={e => set('sku', e.target.value.toUpperCase())}
           placeholder="MLK-500"
+          hint="Short code you'll use to find this product. Can be anything — e.g. MILK1"
         />
       </div>
 
       <div className="grid-2">
         <div className="pf-barcode-row">
           <Input
-            label="Barcode"
+            label="Barcode (optional)"
             value={form.barcode}
             onChange={e => set('barcode', e.target.value.replace(/\D/g, ''))}
-            placeholder="6161100001"
+            placeholder="Leave empty if not applicable"
             inputMode="numeric"
+            hint="Only needed if you scan barcodes"
           />
           <button
             type="button"
             className="pf-scan-btn"
             onClick={() => setScanning(true)}
             title="Scan barcode with camera"
-            aria-label="Scan barcode"
+            aria-label="Scan barcode with camera"
           >
             <ScanLine size={18} />
           </button>
@@ -106,6 +108,13 @@ export default function ProductForm({
         </div>
       </div>
 
+      <div className="pf-help">
+        <strong>Don't have barcodes?</strong> That's fine. Leave the field empty
+        and use the search box at the POS — you can find any product by name or
+        SKU. Barcodes only matter if you have a scanner or use our phone camera
+        scanner.
+      </div>
+
       <div className="grid-2">
         <Input
           label="Buying price (KSh)"
@@ -114,6 +123,7 @@ export default function ProductForm({
           value={form.buyingPrice}
           onChange={e => set('buyingPrice', e.target.value)}
           placeholder="0"
+          hint="What you pay the supplier"
         />
         <Input
           label="Retail price (KSh)"
@@ -122,6 +132,7 @@ export default function ProductForm({
           value={form.price}
           onChange={e => set('price', e.target.value)}
           placeholder="0"
+          hint="What your customer pays"
         />
       </div>
 
@@ -141,12 +152,13 @@ export default function ProductForm({
           value={form.threshold}
           onChange={e => set('threshold', e.target.value)}
           placeholder="10"
+          hint="You'll get an alert when stock hits this number"
         />
       </div>
 
       <div className="grid-2">
         <Input
-          label="Supplier"
+          label="Supplier (optional)"
           value={form.supplier}
           onChange={e => set('supplier', e.target.value)}
           placeholder="e.g. Brookside"
@@ -214,12 +226,18 @@ export default function ProductForm({
           transition: background 160ms ease, transform 160ms ease;
           box-shadow: 0 6px 18px rgba(109, 94, 252, 0.28);
         }
-        .pf-scan-btn:hover {
-          background: var(--primary-600);
+        .pf-scan-btn:hover { background: var(--primary-600); }
+        .pf-scan-btn:active { transform: scale(0.96); }
+
+        .pf-help {
+          padding: 12px 14px;
+          background: var(--bg-soft);
+          border-radius: 10px;
+          font-size: 12.5px;
+          line-height: 1.6;
+          color: var(--text-muted);
         }
-        .pf-scan-btn:active {
-          transform: scale(0.96);
-        }
+        .pf-help strong { color: var(--text); }
       `}</style>
     </form>
   );

@@ -5,10 +5,11 @@ import {
   DecodeHintType,
 } from '@zxing/library';
 import {
-  Camera, Flashlight, Keyboard, RefreshCw, RotateCcw, X,
+  Camera, Check, Flashlight, Keyboard, RefreshCw, RotateCcw, X,
 } from 'lucide-react';
 import Button from './Button';
 import { useToast } from '@/context/ToastContext';
+import { scanBeep, errorBeep } from '@/utils/beep';
 import './BarcodeScannerModal.css';
 
 const FORMATS = [
@@ -23,12 +24,7 @@ const FORMATS = [
   BarcodeFormat.QR_CODE,
 ];
 
-/**
- * Progressively more permissive constraint sets.
- * We try #1 first; if the camera rejects the request, we fall back.
- */
 const CONSTRAINT_SETS = [
-  // Ideal — rear camera at decent resolution
   {
     video: {
       facingMode: { ideal: 'environment' },
@@ -37,12 +33,7 @@ const CONSTRAINT_SETS = [
     },
     audio: false,
   },
-  // Simpler resolution
-  {
-    video: { facingMode: { ideal: 'environment' } },
-    audio: false,
-  },
-  // Any camera
+  { video: { facingMode: { ideal: 'environment' } }, audio: false },
   { video: true, audio: false },
 ];
 
@@ -54,6 +45,8 @@ export default function BarcodeScannerModal({
   subtitle = 'Point the camera at the barcode',
   manualLabel,
   onManualEntry,
+  multiScan = false,
+  recentLimit = 4,
 }) {
   const toast = useToast();
   const videoRef = useRef(null);
@@ -62,7 +55,6 @@ export default function BarcodeScannerModal({
   const lastScanRef = useRef({ code: null, at: 0 });
   const scannedRef = useRef(false);
   const streamRef = useRef(null);
-  const attemptRef = useRef(0);
 
   const [devices, setDevices] = useState([]);
   const [deviceId, setDeviceId] = useState(null);
@@ -74,8 +66,9 @@ export default function BarcodeScannerModal({
   const [flash, setFlash] = useState(false);
   const [manualInput, setManualInput] = useState('');
   const [showManual, setShowManual] = useState(false);
+  const [recent, setRecent] = useState([]);
+  const [scanCount, setScanCount] = useState(0);
 
-  // ---------- Cleanup helpers ----------
   const stopStream = useCallback(() => {
     try {
       controlsRef.current?.stop();
@@ -83,15 +76,12 @@ export default function BarcodeScannerModal({
       /* ignore */
     }
     controlsRef.current = null;
-
     try {
       readerRef.current?.reset?.();
     } catch {
       /* ignore */
     }
     readerRef.current = null;
-
-    // Kill any lingering raw stream (getUserMedia pre-flight)
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => {
         try {
@@ -102,8 +92,6 @@ export default function BarcodeScannerModal({
       });
       streamRef.current = null;
     }
-
-    // Also stop whatever ZXing attached to the video element
     const video = videoRef.current;
     if (video?.srcObject) {
       try {
@@ -121,10 +109,48 @@ export default function BarcodeScannerModal({
     setDetail(detailMessage);
   };
 
-  // ---------- Core scanner start ----------
+  const handleDetected = code => {
+    const now = Date.now();
+    const last = lastScanRef.current;
+    if (last.code === code && now - last.at < 900) return;
+
+    lastScanRef.current = { code, at: now };
+    scanBeep();
+    setFlash(true);
+    setScanCount(c => c + 1);
+    setRecent(prev =>
+      [{ code, at: now }, ...prev].slice(0, Math.max(1, recentLimit))
+    );
+    try {
+      if (navigator.vibrate) navigator.vibrate(45);
+    } catch {
+      /* ignore */
+    }
+
+    // Fire the caller's onScan (or onManualEntry if supplied)
+    try {
+      onScan?.(code);
+    } catch {
+      errorBeep();
+    }
+
+    if (multiScan) {
+      // Keep scanning; the flash fades on its own
+      setTimeout(() => setFlash(false), 180);
+      return;
+    }
+
+    // Single-scan: close after a moment so the user sees the green flash
+    scannedRef.current = true;
+    setTimeout(() => {
+      stopStream();
+      onClose?.();
+      setFlash(false);
+    }, 280);
+  };
+
   const startScanner = useCallback(async () => {
     if (!open) return;
-    attemptRef.current += 1;
     stopStream();
     setStatus('starting');
     setError('');
@@ -132,44 +158,22 @@ export default function BarcodeScannerModal({
     setTorchOn(false);
     scannedRef.current = false;
 
-    // --- 1. Secure context check ---
     const isLocalhost =
       window.location.hostname === 'localhost' ||
       window.location.hostname === '127.0.0.1';
     if (!window.isSecureContext && !isLocalhost) {
       return failWith(
         'Camera access requires HTTPS.',
-        `You are currently on ${window.location.protocol}//${window.location.host}. Browsers block camera access on non-secure origins. Open the deployed app at https://pos-saas-pearl.vercel.app on this device, or use ngrok to expose your dev server over HTTPS.`
+        `You are on ${window.location.protocol}//${window.location.host}. Open the deployed app on Vercel, or use ngrok for local testing.`
       );
     }
-
-    // --- 2. Browser support ---
     if (!navigator.mediaDevices?.getUserMedia) {
       return failWith(
         'This browser does not support camera access.',
-        'Try Chrome, Edge, or Safari. Firefox on iOS does not support camera access.'
+        'Try Chrome, Edge or Safari.'
       );
     }
 
-    // --- 3. Permission state (best-effort — some browsers lack this API) ---
-    let permissionState = 'prompt';
-    try {
-      if (navigator.permissions?.query) {
-        const p = await navigator.permissions.query({ name: 'camera' });
-        permissionState = p.state;
-      }
-    } catch {
-      /* ignore — the API is optional */
-    }
-
-    if (permissionState === 'denied') {
-      return failWith(
-        'Camera permission is blocked for this site.',
-        'Tap the lock icon in the address bar → Permissions → set Camera to Allow, then tap Retry below. On Android Chrome you can also go to Settings → Site Settings → Camera.'
-      );
-    }
-
-    // --- 4. Enumerate cameras (best-effort — may be empty before permission) ---
     let camList = [];
     try {
       camList = await BrowserMultiFormatReader.listVideoInputDevices();
@@ -178,51 +182,34 @@ export default function BarcodeScannerModal({
     }
     setDevices(camList);
 
-    // --- 5. Pre-flight: ask for permission with a simple getUserMedia call ---
-    //     This forces the browser to show the permission prompt NOW, and
-    //     gives us a raw stream to hand to ZXing. It also pre-fills device
-    //     labels so the switch-camera button is accurate.
     let preflightStream = null;
     let lastConstraintError = null;
-
     for (const constraints of CONSTRAINT_SETS) {
       try {
         preflightStream = await navigator.mediaDevices.getUserMedia(constraints);
         break;
       } catch (err) {
         lastConstraintError = err;
-        // NotAllowedError = user said no, no point trying more constraints
         if (err?.name === 'NotAllowedError') break;
-        // Otherwise keep falling through to the next, more permissive set
       }
     }
 
     if (!preflightStream) {
       const name = String(lastConstraintError?.name || '');
       const message = String(lastConstraintError?.message || '');
-
       if (name === 'NotAllowedError') {
         return failWith(
           'Camera permission was denied.',
-          'If this was a mistake, tap the lock icon in the address bar → Permissions → set Camera to Allow, then tap Retry.'
+          'Tap the lock icon in the address bar → Permissions → set Camera to Allow, then Retry.'
         );
       }
       if (name === 'NotFoundError') {
-        return failWith(
-          'No camera was found on this device.',
-          'If your phone has a camera, try again after closing other apps that might be using it.'
-        );
+        return failWith('No camera was found on this device.');
       }
       if (name === 'NotReadableError') {
         return failWith(
           'The camera is in use by another app.',
-          'Close WhatsApp, Zoom, Instagram, or any other app that uses the camera, then tap Retry.'
-        );
-      }
-      if (name === 'OverconstrainedError') {
-        return failWith(
-          'This camera rejected the requested settings.',
-          'Try switching to the other camera using the rotate button in the top-right, then tap Retry.'
+          'Close WhatsApp, Zoom or the system camera, then Retry.'
         );
       }
       return failWith(
@@ -231,8 +218,6 @@ export default function BarcodeScannerModal({
       );
     }
 
-    // We now have a live raw stream. Attach it to the video element so
-    // the user sees something while ZXing initializes.
     streamRef.current = preflightStream;
     const video = videoRef.current;
     if (video) {
@@ -240,11 +225,10 @@ export default function BarcodeScannerModal({
       try {
         await video.play();
       } catch {
-        /* ignore autoplay quirks */
+        /* ignore */
       }
     }
 
-    // Torch support
     try {
       const track = preflightStream.getVideoTracks()[0];
       const caps = track.getCapabilities?.() || {};
@@ -253,57 +237,43 @@ export default function BarcodeScannerModal({
       setHasTorch(false);
     }
 
-    // --- 6. Hand the video element over to ZXing for decoding ---
-    //     We pass `null` as deviceId because the video already has a stream.
-    //     ZXing's decodeFromVideoDevice accepts either a deviceId OR uses the
-    //     existing srcObject when passed null in newer versions.
     try {
       const hints = new Map();
       hints.set(DecodeHintType.POSSIBLE_FORMATS, FORMATS);
       hints.set(DecodeHintType.TRY_HARDER, true);
 
       const reader = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 120,
-        delayBetweenScanSuccess: 800,
+        delayBetweenScanAttempts: 80,
+        delayBetweenScanSuccess: 500,
       });
       readerRef.current = reader;
 
-      // Attach ZXing's decoder to the same stream
       const controls = await reader.decodeFromStream(
         preflightStream,
         video,
-        (result) => {
-          if (result && !scannedRef.current) {
-            handleDetected(result.getText());
-          }
+        result => {
+          if (result) handleDetected(result.getText());
         }
       );
       controlsRef.current = controls;
-
       setStatus('ready');
     } catch (err) {
-      // If ZXing fails, at least show the raw camera preview so the user
-      // knows the camera itself is working. Then explain the decoder failed.
       // eslint-disable-next-line no-console
-      console.warn('[barcode] ZXing failed:', err);
+      console.warn('[barcode] ZXing failed', err);
       return failWith(
         'Camera is running, but the barcode decoder failed to start.',
-        'Tap Retry. If it keeps failing, use "Type the barcode instead" below.'
+        'Tap Retry. If it keeps failing, use the manual entry below.'
       );
     }
   }, [open, stopStream]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ---------- Lifecycle ----------
   useEffect(() => {
     if (!open) return undefined;
     startScanner();
-    return () => {
-      stopStream();
-    };
+    return () => stopStream();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Body scroll lock
   useEffect(() => {
     if (!open) return undefined;
     const prev = document.body.style.overflow;
@@ -313,31 +283,9 @@ export default function BarcodeScannerModal({
     };
   }, [open]);
 
-  // ---------- Detection handler ----------
-  const handleDetected = code => {
-    const now = Date.now();
-    const last = lastScanRef.current;
-    if (last.code === code && now - last.at < 1500) return;
-
-    lastScanRef.current = { code, at: now };
-    scannedRef.current = true;
-    setFlash(true);
-    try {
-      if (navigator.vibrate) navigator.vibrate(80);
-    } catch {
-      /* ignore */
-    }
-
-    setTimeout(() => {
-      stopStream();
-      onScan?.(code);
-      onClose?.();
-      setFlash(false);
-    }, 320);
-  };
-
   const retry = () => {
-    attemptRef.current = 0;
+    setRecent([]);
+    setScanCount(0);
     startScanner();
   };
 
@@ -347,9 +295,7 @@ export default function BarcodeScannerModal({
         streamRef.current?.getVideoTracks?.()[0] ||
         controlsRef.current?.stream?.getVideoTracks?.()[0];
       if (!track) return;
-      await track.applyConstraints({
-        advanced: [{ torch: !torchOn }],
-      });
+      await track.applyConstraints({ advanced: [{ torch: !torchOn }] });
       setTorchOn(v => !v);
     } catch {
       toast.warning('This camera does not support the flashlight.');
@@ -366,7 +312,6 @@ export default function BarcodeScannerModal({
     setDeviceId(next.deviceId);
     setTorchOn(false);
     stopStream();
-
     setStatus('starting');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -383,26 +328,18 @@ export default function BarcodeScannerModal({
           /* ignore */
         }
       }
-
       const hints = new Map();
       hints.set(DecodeHintType.POSSIBLE_FORMATS, FORMATS);
       hints.set(DecodeHintType.TRY_HARDER, true);
       const reader = new BrowserMultiFormatReader(hints, {
-        delayBetweenScanAttempts: 120,
-        delayBetweenScanSuccess: 800,
+        delayBetweenScanAttempts: 80,
+        delayBetweenScanSuccess: 500,
       });
       readerRef.current = reader;
-      const controls = await reader.decodeFromStream(
-        stream,
-        video,
-        (result) => {
-          if (result && !scannedRef.current) {
-            handleDetected(result.getText());
-          }
-        }
-      );
+      const controls = await reader.decodeFromStream(stream, video, result => {
+        if (result) handleDetected(result.getText());
+      });
       controlsRef.current = controls;
-
       try {
         const track = stream.getVideoTracks()[0];
         const caps = track.getCapabilities?.() || {};
@@ -410,15 +347,9 @@ export default function BarcodeScannerModal({
       } catch {
         setHasTorch(false);
       }
-
       setStatus('ready');
     } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn('[barcode] switch failed', err);
-      failWith(
-        'Could not switch cameras.',
-        String(err?.message || err)
-      );
+      failWith('Could not switch cameras.', String(err?.message || err));
     }
   };
 
@@ -426,6 +357,10 @@ export default function BarcodeScannerModal({
     const trimmed = manualInput.trim();
     if (!trimmed) return;
     onManualEntry?.(trimmed);
+    if (multiScan) {
+      setManualInput('');
+      return;
+    }
     onScan?.(trimmed);
     onClose?.();
   };
@@ -459,7 +394,11 @@ export default function BarcodeScannerModal({
         </button>
         <div className="bsm-head-text">
           <div className="bsm-title">{title}</div>
-          <div className="bsm-subtitle">{subtitle}</div>
+          <div className="bsm-subtitle">
+            {multiScan
+              ? `Scan continuously · ${scanCount} scanned`
+              : subtitle}
+          </div>
         </div>
         <div className="bsm-head-actions">
           {hasTorch && (
@@ -487,9 +426,11 @@ export default function BarcodeScannerModal({
             <Camera size={14} /> Starting camera…
           </div>
         )}
-        {status === 'ready' && (
+        {status === 'ready' && !flash && (
           <div className="bsm-status-pill bsm-status-ready">
-            Point at a barcode — it will scan automatically
+            {multiScan
+              ? 'Keep scanning — each item is added automatically'
+              : 'Point at a barcode — it will scan automatically'}
           </div>
         )}
         {status === 'error' && error && (
@@ -503,13 +444,28 @@ export default function BarcodeScannerModal({
         )}
         {flash && (
           <div className="bsm-status-pill bsm-status-ok">
-            Barcode detected
+            <Check size={14} /> Added
           </div>
         )}
       </div>
 
+      {multiScan && recent.length > 0 && (
+        <div className="bsm-recent" aria-live="polite">
+          {recent.map((r, i) => (
+            <div key={`${r.code}-${r.at}`} className="bsm-recent-row">
+              <Check size={12} />
+              <span className="mono">{r.code}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <footer className="bsm-foot">
-        {manualLabel ? (
+        {multiScan && status === 'ready' ? (
+          <Button full size="lg" onClick={onClose} leftIcon={<Check size={16} />}>
+            Done scanning ({scanCount})
+          </Button>
+        ) : manualLabel ? (
           showManual ? (
             <div className="bsm-manual">
               <input
@@ -524,7 +480,7 @@ export default function BarcodeScannerModal({
                 autoFocus
               />
               <Button onClick={submitManual} disabled={!manualInput.trim()}>
-                Use this code
+                Use
               </Button>
             </div>
           ) : (

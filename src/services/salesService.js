@@ -41,6 +41,18 @@ class SalesService {
     return storage.read(KEY, []).find(o => o.id === id) || null;
   }
 
+  /**
+   * Complete a sale.
+   *
+   * Supports:
+   *  - Single-method sales (Cash, M-Pesa, On credit)
+   *  - Split payments (any combination of Cash + M-Pesa) via the
+   *    optional `payments` array
+   *
+   * When `payments` is provided, it must sum to `total` (within 1 cent).
+   * The order records both `method` (a human label — "Split" or the
+   * single method) and `payments` (the actual breakdown).
+   */
   async create({
     items,
     subtotal,
@@ -49,6 +61,7 @@ class SalesService {
     total,
     method,
     reference,
+    payments,
     customerId,
     customerName,
     cashier,
@@ -65,12 +78,36 @@ class SalesService {
       throw new Error('Select a customer to sell on credit.');
     }
 
+    // Normalize payments: either from the explicit array or a single payment.
+    const paymentList =
+      Array.isArray(payments) && payments.length > 0
+        ? payments
+        : [
+            {
+              method: onCredit ? 'On credit' : method,
+              amount: total,
+              reference: reference || null,
+            },
+          ];
+
+    // Validate: sum of payments must match the total
+    const paymentTotal = paymentList.reduce(
+      (s, p) => s + (Number(p.amount) || 0),
+      0
+    );
+    if (Math.abs(paymentTotal - total) > 0.01) {
+      throw new Error(
+        `Payment amounts (KSh ${paymentTotal.toLocaleString()}) do not match the total (KSh ${total.toLocaleString()}).`
+      );
+    }
+
     const orders = storage.read(KEY, []);
     const nextNumber =
       orders.length === 0
         ? 1001
         : Math.max(...orders.map(o => Number(o.id) || 1000)) + 1;
 
+    // Decrement stock and log the movement
     await productService.adjustStock(
       items.map(i => ({ id: i.id, qty: i.qty })),
       -1,
@@ -80,6 +117,10 @@ class SalesService {
     if (customerId) {
       await customerService.recordPurchase(customerId, total);
     }
+
+    // Human-readable label for the order row and receipts
+    const methodLabel =
+      paymentList.length > 1 ? 'Split' : paymentList[0]?.method || method || 'Cash';
 
     const order = {
       id: String(nextNumber),
@@ -98,7 +139,12 @@ class SalesService {
       tax,
       discount: discount || 0,
       total,
-      method: onCredit ? 'On credit' : method,
+      method: methodLabel,
+      payments: paymentList.map(p => ({
+        method: p.method,
+        amount: Number(p.amount) || 0,
+        reference: p.reference || null,
+      })),
       reference: reference || null,
       paymentStatus: onCredit ? 'credit' : 'paid',
       status: 'COMPLETED',
@@ -109,7 +155,7 @@ class SalesService {
     orders.unshift(order);
     storage.write(KEY, orders);
 
-    // Create the ledger entry for the credit sale
+    // If the whole sale is on credit, create a matching ledger entry
     if (onCredit && customerId) {
       await customerLedgerService.recordCreditSale({
         customerId,

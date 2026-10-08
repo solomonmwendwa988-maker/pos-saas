@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
-const PAGE_W = 595.28; // A4 width in points
-const PAGE_H = 841.89; // A4 height in points
+const PAGE_W = 595.28;
+const PAGE_H = 841.89;
 const MARGIN = 40;
 const HEADER_H = 110;
 const FOOTER_H = 40;
@@ -33,18 +33,6 @@ function moneyFmt(n) {
 }
 
 class PdfService {
-  /**
-   * Generates a professional table PDF.
-   * @param {object} opts
-   * @param {string} opts.title
-   * @param {string} [opts.subtitle]
-   * @param {object} [opts.business]  { name, location, phone, email }
-   * @param {string} [opts.filename]
-   * @param {Array}  opts.columns     [{ key, label, width, align, format }]
-   * @param {Array}  opts.rows
-   * @param {object} [opts.totals]    { label: value } rendered below the table
-   * @param {number} [opts.maxRows]   caps at this many rows (default 500)
-   */
   async generateTablePdf({
     title,
     subtitle,
@@ -64,7 +52,6 @@ class PdfService {
     const cappedRows = rows.slice(0, maxRows);
     const truncated = totalRows > maxRows;
 
-    // Column widths: use explicit widths, or distribute evenly
     const tableWidth = PAGE_W - MARGIN * 2;
     const totalColWidth =
       columns.reduce((s, c) => s + (c.width || 0), 0) || 1;
@@ -74,22 +61,17 @@ class PdfService {
         : tableWidth / columns.length
     );
 
-    // Compute how many rows fit per page
     const usableHeight = PAGE_H - HEADER_H - FOOTER_H - 20;
     const rowsPerPage = Math.max(
       5,
       Math.floor((usableHeight - HEADER_ROW_H) / ROW_H)
     );
-    const totalPages = Math.max(
-      1,
-      Math.ceil(cappedRows.length / rowsPerPage)
-    );
+    const totalPages = Math.max(1, Math.ceil(cappedRows.length / rowsPerPage));
 
     for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
       const page = doc.addPage([PAGE_W, PAGE_H]);
       let y = PAGE_H;
 
-      // ---------- Header ----------
       this._drawHeader(page, font, fontBold, {
         title,
         subtitle,
@@ -99,12 +81,9 @@ class PdfService {
       });
 
       y = PAGE_H - HEADER_H;
-
-      // ---------- Table header ----------
       this._drawTableHeader(page, fontBold, columns, widths, y);
       y -= HEADER_ROW_H;
 
-      // ---------- Rows ----------
       const pageRows = cappedRows.slice(
         pageIdx * rowsPerPage,
         (pageIdx + 1) * rowsPerPage
@@ -115,28 +94,19 @@ class PdfService {
         y -= ROW_H;
       });
 
-      // ---------- Totals (last page only) ----------
       if (pageIdx === totalPages - 1 && totals) {
         y -= 8;
         this._drawTotals(page, font, fontBold, totals, widths, y);
       }
 
-      // ---------- Truncation note ----------
       if (truncated && pageIdx === totalPages - 1) {
         y -= 20;
         page.drawText(
           `Showing first ${maxRows} of ${totalRows} rows. Download the Excel export for the full dataset.`,
-          {
-            x: MARGIN,
-            y,
-            font,
-            size: 8.5,
-            color: COLORS.muted,
-          }
+          { x: MARGIN, y, font, size: 8.5, color: COLORS.muted }
         );
       }
 
-      // ---------- Footer ----------
       this._drawFooter(page, font, {
         business,
         pageNumber: pageIdx + 1,
@@ -149,8 +119,12 @@ class PdfService {
     return new Blob([bytes], { type: 'application/pdf' });
   }
 
-  _drawHeader(page, font, fontBold, { title, subtitle, business, pageNumber, totalPages }) {
-    // Purple accent bar at the very top
+  _drawHeader(
+    page,
+    font,
+    fontBold,
+    { title, subtitle, business, pageNumber, totalPages }
+  ) {
     page.drawRectangle({
       x: 0,
       y: PAGE_H - 4,
@@ -160,8 +134,6 @@ class PdfService {
     });
 
     const topY = PAGE_H - MARGIN;
-
-    // Business name
     const bizName = business.name || 'Your Business';
     page.drawText(bizName, {
       x: MARGIN,
@@ -171,7 +143,6 @@ class PdfService {
       color: COLORS.text,
     });
 
-    // Contact line
     const contact = [business.location, business.phone, business.email]
       .filter(Boolean)
       .join('  ·  ');
@@ -185,7 +156,6 @@ class PdfService {
       });
     }
 
-    // Document title on the right
     const titleWidth = fontBold.widthOfTextAtSize(title, 13);
     page.drawText(title, {
       x: PAGE_W - MARGIN - titleWidth,
@@ -206,10 +176,12 @@ class PdfService {
       });
     }
 
-    // Generated timestamp
     const stamp = `Generated ${new Date().toLocaleString('en-KE', {
-      day: 'numeric', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     })}`;
     const stampW = font.widthOfTextAtSize(stamp, 8);
     page.drawText(stamp, {
@@ -220,7 +192,6 @@ class PdfService {
       color: COLORS.faint,
     });
 
-    // Divider
     page.drawLine({
       start: { x: MARGIN, y: PAGE_H - HEADER_H + 16 },
       end: { x: PAGE_W - MARGIN, y: PAGE_H - HEADER_H + 16 },
@@ -230,7 +201,6 @@ class PdfService {
   }
 
   _drawTableHeader(page, fontBold, columns, widths, y) {
-    // Purple header bar
     page.drawRectangle({
       x: MARGIN,
       y: y - HEADER_ROW_H,
@@ -273,7 +243,6 @@ class PdfService {
       });
     }
 
-    // Thin separator
     page.drawLine({
       start: { x: MARGIN, y: y - ROW_H + 4 },
       end: { x: PAGE_W - MARGIN, y: y - ROW_H + 4 },
@@ -287,8 +256,7 @@ class PdfService {
       const raw = col.format ? col.format(row[col.key], row) : row[col.key];
       const text = truncate(raw ?? '', Math.floor(w / 5));
       const size = col.size || 9;
-      const fontToUse = col.bold ? font : font;
-      const textWidth = fontToUse.widthOfTextAtSize(text, size);
+      const textWidth = font.widthOfTextAtSize(text, size);
       const align = col.align || 'left';
 
       let tx;
@@ -299,7 +267,7 @@ class PdfService {
       page.drawText(text, {
         x: tx,
         y: y - ROW_H + 8,
-        font: fontToUse,
+        font,
         size,
         color: col.color ? col.color(row) : COLORS.text,
       });
@@ -308,7 +276,6 @@ class PdfService {
   }
 
   _drawTotals(page, font, fontBold, totals, widths, y) {
-    // Totals divider
     page.drawLine({
       start: { x: MARGIN, y: y + 6 },
       end: { x: PAGE_W - MARGIN, y: y + 6 },
@@ -374,66 +341,62 @@ class PdfService {
     });
   }
 
-  /** Helper: download a Blob as a file. */
-  downloadBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 500);
-  }
-
   /**
-   * Single-document PDF (invoice / statement / PO) — no repeating rows
-   * per page, uses a slightly different layout.
+   * Single-document PDF (invoice / statement / purchase order / receipt).
+   *
+   * Supports:
+   *  - items, totals, notes, meta
+   *  - payments[] — split payment breakdown
+   *  - cash — { tendered, change }
+   *  - loyalty — { pointsEarned, pointsRedeemed, valueRedeemed, balance }
    */
   async generateInvoicePdf({
-    documentType, // 'INVOICE' | 'STATEMENT' | 'PURCHASE ORDER' | 'SHIFT REPORT'
+    documentType,
     documentNumber,
     issuedDate,
     business = {},
-    partyLabel, // 'Bill to' | 'Statement for' | 'Supplier'
-    party = {}, // { name, phone, email, address }
-    items = [], // [{ description, qty, unitPrice, total }]
-    totals = {}, // { Subtotal, Tax, Total }
+    partyLabel,
+    party = {},
+    items = [],
+    totals = {},
     notes = '',
-    meta = [], // [{ label, value }] extra rows like reference, cashier
+    meta = [],
+    payments = [],
+    loyalty = null,
+    cash = null,
   }) {
     const doc = await PDFDocument.create();
     const font = await doc.embedFont(StandardFonts.Helvetica);
     const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
-    const page = doc.addPage([PAGE_W, PAGE_H]);
+    let page = doc.addPage([PAGE_W, PAGE_H]);
 
     let y = PAGE_H;
 
-    // Top accent bar
+    // Top accent
     page.drawRectangle({
       x: 0,
-      y: PAGE_H - 6,
+      y: PAGE_H - 8,
       width: PAGE_W,
-      height: 6,
+      height: 8,
       color: COLORS.primary,
     });
 
-    // Header
-    y -= MARGIN + 16;
+    // Business header
+    y -= MARGIN + 12;
     page.drawText(business.name || 'Your Business', {
       x: MARGIN,
       y,
       font: fontBold,
-      size: 20,
+      size: 22,
       color: COLORS.text,
     });
 
-    y -= 20;
-    const bizLine = [business.location, business.phone]
+    y -= 22;
+    const bizLine = [business.location, business.phone, business.email]
       .filter(Boolean)
       .join('  ·  ');
     if (bizLine) {
-      page.drawText(bizLine, {
+      page.drawText(truncate(bizLine, 75), {
         x: MARGIN,
         y,
         font,
@@ -442,116 +405,127 @@ class PdfService {
       });
     }
 
-    // Document type + number (right)
-    const typeWidth = fontBold.widthOfTextAtSize(documentType, 18);
+    // Document badge
+    const badgeW = 175;
+    const badgeH = 62;
+    const badgeX = PAGE_W - MARGIN - badgeW;
+    const badgeY = PAGE_H - MARGIN - 62;
+    page.drawRectangle({
+      x: badgeX,
+      y: badgeY,
+      width: badgeW,
+      height: badgeH,
+      color: COLORS.primaryLight,
+      borderColor: COLORS.primary,
+      borderWidth: 1,
+    });
+    const typeW = fontBold.widthOfTextAtSize(documentType, 12);
     page.drawText(documentType, {
-      x: PAGE_W - MARGIN - typeWidth,
-      y: PAGE_H - MARGIN - 10,
+      x: badgeX + (badgeW - typeW) / 2,
+      y: badgeY + badgeH - 20,
       font: fontBold,
-      size: 18,
+      size: 12,
       color: COLORS.primary,
     });
-
-    const numW = fontBold.widthOfTextAtSize(documentNumber, 11);
+    const numW = fontBold.widthOfTextAtSize(documentNumber, 16);
     page.drawText(documentNumber, {
-      x: PAGE_W - MARGIN - numW,
-      y: PAGE_H - MARGIN - 32,
+      x: badgeX + (badgeW - numW) / 2,
+      y: badgeY + 14,
       font: fontBold,
-      size: 11,
+      size: 16,
       color: COLORS.text,
     });
 
-    const dateW = font.widthOfTextAtSize(issuedDate, 9);
-    page.drawText(issuedDate, {
-      x: PAGE_W - MARGIN - dateW,
-      y: PAGE_H - MARGIN - 48,
-      font,
-      size: 9,
-      color: COLORS.muted,
-    });
-
-    // Divider
-    y = PAGE_H - HEADER_H - 10;
+    // Meta strip
+    y = PAGE_H - MARGIN - 80;
     page.drawLine({
-      start: { x: MARGIN, y: y + 30 },
-      end: { x: PAGE_W - MARGIN, y: y + 30 },
+      start: { x: MARGIN, y },
+      end: { x: PAGE_W - MARGIN, y },
       thickness: 0.7,
       color: COLORS.border,
     });
 
-    // Party box
-    y -= 40;
-    const partyBoxH = meta.length > 0 ? 80 : 70;
-    page.drawRectangle({
+    y -= 16;
+    page.drawText(`Issued: ${issuedDate}`, {
       x: MARGIN,
-      y: y - partyBoxH + 20,
-      width: PAGE_W - MARGIN * 2,
-      height: partyBoxH,
-      color: COLORS.primaryLight,
+      y,
+      font,
+      size: 9.5,
+      color: COLORS.muted,
     });
 
-    page.drawText(partyLabel.toUpperCase(), {
+    if (meta.length) {
+      let my = y;
+      meta.forEach(m => {
+        const labelW = font.widthOfTextAtSize(`${m.label}:`, 9.5);
+        page.drawText(`${m.label}:`, {
+          x: PAGE_W - MARGIN - labelW - 100,
+          y: my,
+          font,
+          size: 9.5,
+          color: COLORS.muted,
+        });
+        const valW = fontBold.widthOfTextAtSize(String(m.value), 9.5);
+        page.drawText(String(m.value), {
+          x: PAGE_W - MARGIN - valW,
+          y: my,
+          font: fontBold,
+          size: 9.5,
+          color: COLORS.text,
+        });
+        my -= 14;
+      });
+    }
+
+    // Party box
+    y -= 30;
+    const boxH = 60;
+    page.drawRectangle({
+      x: MARGIN,
+      y: y - boxH,
+      width: PAGE_W - MARGIN * 2,
+      height: boxH,
+      color: COLORS.altRow,
+      borderColor: COLORS.border,
+      borderWidth: 0.5,
+    });
+    page.drawText((partyLabel || 'CUSTOMER').toUpperCase(), {
       x: MARGIN + 16,
-      y: y - 4,
+      y: y - 18,
       font: fontBold,
       size: 8,
       color: COLORS.primary,
     });
-
     page.drawText(party.name || '—', {
       x: MARGIN + 16,
-      y: y - 22,
+      y: y - 38,
       font: fontBold,
-      size: 12,
+      size: 12.5,
       color: COLORS.text,
     });
-
     const partyContact = [party.phone, party.email, party.address]
       .filter(Boolean)
       .join('  ·  ');
     if (partyContact) {
-      page.drawText(truncate(partyContact, 70), {
+      page.drawText(truncate(partyContact, 75), {
         x: MARGIN + 16,
-        y: y - 38,
+        y: y - 52,
         font,
         size: 9,
         color: COLORS.muted,
       });
     }
 
-    // Meta (right side of party box)
-    let metaY = y - 4;
-    meta.forEach(m => {
-      const labelW = font.widthOfTextAtSize(`${m.label}:`, 9);
-      page.drawText(`${m.label}:`, {
-        x: PAGE_W - MARGIN - 200,
-        y: metaY,
-        font,
-        size: 9,
-        color: COLORS.muted,
-      });
-      const valW = fontBold.widthOfTextAtSize(String(m.value), 9);
-      page.drawText(String(m.value), {
-        x: PAGE_W - MARGIN - 16 - valW,
-        y: metaY,
-        font: fontBold,
-        size: 9,
-        color: COLORS.text,
-      });
-      metaY -= 16;
-    });
+    y -= boxH + 20;
 
-    y -= partyBoxH + 20;
-
-    // ---------- Items table ----------
+    // Items table
     const itemCols = [
-      { label: 'Description', w: 280, align: 'left' },
+      { label: 'Item', w: 260, align: 'left' },
       { label: 'Qty', w: 55, align: 'right' },
-      { label: 'Unit price', w: 85, align: 'right' },
-      { label: 'Total', w: 95, align: 'right' },
+      { label: 'Unit price', w: 95, align: 'right' },
+      { label: 'Line total', w: 100, align: 'right' },
     ];
 
-    // Table header
     page.drawRectangle({
       x: MARGIN,
       y: y - 26,
@@ -559,11 +533,10 @@ class PdfService {
       height: 26,
       color: COLORS.primary,
     });
-
-    let x = MARGIN;
+    let cx = MARGIN;
     itemCols.forEach(col => {
       const lw = fontBold.widthOfTextAtSize(col.label, 9);
-      const tx = col.align === 'right' ? x + col.w - 12 - lw : x + 12;
+      const tx = col.align === 'right' ? cx + col.w - 12 - lw : cx + 12;
       page.drawText(col.label, {
         x: tx,
         y: y - 18,
@@ -571,25 +544,20 @@ class PdfService {
         size: 9,
         color: COLORS.white,
       });
-      x += col.w;
+      cx += col.w;
     });
-
     y -= 26;
 
-    // Items
     items.forEach((item, i) => {
-      if (y < MARGIN + 200) {
-        // Page break
+      if (y < MARGIN + 260) {
         this._drawFooter(page, font, {
           business,
           pageNumber: 1,
           totalPages: 1,
         });
-        const newPage = doc.addPage([PAGE_W, PAGE_H]);
+        page = doc.addPage([PAGE_W, PAGE_H]); // eslint-disable-line no-param-reassign
         y = PAGE_H - MARGIN;
-        page = newPage; // eslint-disable-line no-param-reassign
       }
-
       if (i % 2 === 1) {
         page.drawRectangle({
           x: MARGIN,
@@ -599,10 +567,9 @@ class PdfService {
           color: COLORS.altRow,
         });
       }
-
-      let cx = MARGIN;
+      let cx2 = MARGIN;
       const values = [
-        truncate(item.description, 48),
+        truncate(item.description, 46),
         String(item.qty ?? ''),
         moneyFmt(item.unitPrice),
         moneyFmt(item.total),
@@ -611,7 +578,7 @@ class PdfService {
         const col = itemCols[vi];
         const size = 9.5;
         const vw = font.widthOfTextAtSize(val, size);
-        const tx = col.align === 'right' ? cx + col.w - 12 - vw : cx + 12;
+        const tx = col.align === 'right' ? cx2 + col.w - 12 - vw : cx2 + 12;
         page.drawText(val, {
           x: tx,
           y: y - 14,
@@ -619,28 +586,27 @@ class PdfService {
           size,
           color: COLORS.text,
         });
-        cx += col.w;
+        cx2 += col.w;
       });
-
       y -= 20;
     });
 
-    // ---------- Totals ----------
-    y -= 10;
+    // Totals
+    y -= 12;
     page.drawLine({
-      start: { x: MARGIN, y: y + 6 },
+      start: { x: PAGE_W - MARGIN - 280, y: y + 6 },
       end: { x: PAGE_W - MARGIN, y: y + 6 },
       thickness: 0.7,
       color: COLORS.border,
     });
 
-    let totalY = y - 12;
+    let totalY = y - 14;
     const totalEntries = Object.entries(totals);
     totalEntries.forEach(([label, value], i) => {
       const isGrand = i === totalEntries.length - 1;
-      const size = isGrand ? 12 : 10;
+      const size = isGrand ? 13 : 10.5;
       page.drawText(label, {
-        x: PAGE_W - MARGIN - 220,
+        x: PAGE_W - MARGIN - 240,
         y: totalY,
         font: isGrand ? fontBold : font,
         size,
@@ -655,12 +621,136 @@ class PdfService {
         size,
         color: isGrand ? COLORS.primary : COLORS.text,
       });
-      totalY -= isGrand ? 24 : 18;
+      totalY -= isGrand ? 26 : 18;
     });
 
-    // ---------- Notes ----------
+    // Cash tendered / change
+    if (cash && cash.tendered !== undefined) {
+      totalY -= 8;
+      page.drawLine({
+        start: { x: MARGIN, y: totalY + 10 },
+        end: { x: PAGE_W - MARGIN, y: totalY + 10 },
+        thickness: 0.4,
+        color: COLORS.border,
+      });
+      [
+        { label: 'Cash received', value: cash.tendered },
+        { label: 'Change given', value: cash.change },
+      ].forEach(l => {
+        page.drawText(l.label, {
+          x: MARGIN,
+          y: totalY - 4,
+          font,
+          size: 10,
+          color: COLORS.muted,
+        });
+        const v = moneyFmt(l.value);
+        const vw = fontBold.widthOfTextAtSize(v, 10);
+        page.drawText(v, {
+          x: PAGE_W - MARGIN - vw,
+          y: totalY - 4,
+          font: fontBold,
+          size: 10,
+          color: COLORS.text,
+        });
+        totalY -= 16;
+      });
+    }
+
+    // Split payments
+    if (payments && payments.length > 0) {
+      totalY -= 10;
+      page.drawText('Payment received', {
+        x: MARGIN,
+        y: totalY,
+        font: fontBold,
+        size: 9.5,
+        color: COLORS.muted,
+      });
+      totalY -= 16;
+      payments.forEach(p => {
+        const method =
+          p.method === 'mpesa' || p.method === 'M-Pesa'
+            ? 'M-Pesa'
+            : p.method === 'cash' || p.method === 'Cash'
+            ? 'Cash'
+            : p.method === 'On credit'
+            ? 'On credit'
+            : p.method || 'Payment';
+        const ref = p.reference ? `  ·  Ref ${p.reference}` : '';
+        page.drawText(`${method}${ref}`, {
+          x: MARGIN,
+          y: totalY,
+          font,
+          size: 9.5,
+          color: COLORS.text,
+        });
+        const amountStr = moneyFmt(p.amount);
+        const aw = fontBold.widthOfTextAtSize(amountStr, 9.5);
+        page.drawText(amountStr, {
+          x: PAGE_W - MARGIN - aw,
+          y: totalY,
+          font: fontBold,
+          size: 9.5,
+          color: COLORS.text,
+        });
+        totalY -= 14;
+      });
+    }
+
+    // Loyalty
+    if (
+      loyalty &&
+      (loyalty.pointsEarned || loyalty.pointsRedeemed || loyalty.balance)
+    ) {
+      totalY -= 12;
+      page.drawRectangle({
+        x: MARGIN,
+        y: totalY - 46,
+        width: PAGE_W - MARGIN * 2,
+        height: 60,
+        color: COLORS.primaryLight,
+      });
+      page.drawText('Loyalty rewards', {
+        x: MARGIN + 12,
+        y: totalY - 4,
+        font: fontBold,
+        size: 9,
+        color: COLORS.primary,
+      });
+      let ly = totalY - 20;
+      if (loyalty.pointsEarned > 0) {
+        page.drawText(`Points earned: +${loyalty.pointsEarned}`, {
+          x: MARGIN + 12,
+          y: ly,
+          font,
+          size: 9.5,
+          color: COLORS.text,
+        });
+        ly -= 12;
+      }
+      if (loyalty.pointsRedeemed > 0) {
+        page.drawText(
+          `Points redeemed: -${loyalty.pointsRedeemed} (KSh ${loyalty.valueRedeemed})`,
+          { x: MARGIN + 12, y: ly, font, size: 9.5, color: COLORS.text }
+        );
+        ly -= 12;
+      }
+      if (loyalty.balance !== undefined) {
+        page.drawText(`New points balance: ${loyalty.balance}`, {
+          x: MARGIN + 12,
+          y: ly,
+          font: fontBold,
+          size: 9.5,
+          color: COLORS.text,
+        });
+      }
+      totalY -= 60;
+    }
+
+    // Notes
     if (notes) {
-      totalY -= 20;
+      totalY -= 14;
       page.drawText('Notes', {
         x: MARGIN,
         y: totalY,
@@ -669,8 +759,7 @@ class PdfService {
         color: COLORS.muted,
       });
       totalY -= 14;
-      const lines = this._wrapText(notes, 95);
-      lines.forEach(line => {
+      this._wrapText(notes, 95).forEach(line => {
         page.drawText(line, {
           x: MARGIN,
           y: totalY,
@@ -682,11 +771,19 @@ class PdfService {
       });
     }
 
+    // Thank you
+    page.drawText('Thank you for shopping with us. Karibu tena.', {
+      x: MARGIN,
+      y: MARGIN + 22,
+      font: fontBold,
+      size: 11,
+      color: COLORS.primary,
+    });
+
     this._drawFooter(page, font, {
       business,
       pageNumber: 1,
       totalPages: 1,
-      footerNote: 'Thank you for your business',
     });
 
     const bytes = await doc.save();
@@ -707,6 +804,17 @@ class PdfService {
     });
     if (current) lines.push(current);
     return lines;
+  }
+
+  downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 800);
   }
 }
 

@@ -1,0 +1,120 @@
+.lsm { display: flex; flex-direction: column; gap: 14px; }
+
+.lsm-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+.lsm-toolbar-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.lsm-toolbar-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.lsm-preset {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.lsm-preset:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-50);
+}
+.lsm-preset-clear {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+.lsm-preset-clear:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.lsm-list {
+  max-height: 44vh;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.lsm-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.lsm-row:last-child { border-bottom: 0; }
+.lsm-info { min-width: 0; }
+.lsm-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lsm-meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lsm-qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.lsm-step {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.lsm-step:hover { border-color: var(--primary); color: var(--primary); }
+.lsm-input {
+  width: 60px;
+  text-align: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 6px 4px;
+  font-size: 13px;
+  font-weight: 700;
+  outline: none;
+}
+.lsm-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-50);
+}
+
+.lsm-summary {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-soft);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}

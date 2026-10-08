@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Package, ScanLine, Search, User } from 'lucide-react';
+import { Package, ScanLine, Search, Sparkles, User } from 'lucide-react';
 import Input from '@/components/common/Input';
 import Button from '@/components/common/Button';
 import Modal from '@/components/common/Modal';
@@ -11,6 +11,7 @@ import QuickKeys from './QuickKeys';
 import HeldCarts from './HeldCarts';
 import ShiftPanel from './ShiftPanel';
 import CustomerPicker from './CustomerPicker';
+import CashPaymentModal from './CashPaymentModal';
 import WhatsAppShareModal from '@/components/common/WhatsAppShareModal';
 import WhatsAppIcon from '@/components/common/WhatsAppIcon';
 import BarcodeScannerModal from '@/components/common/BarcodeScannerModal';
@@ -20,7 +21,11 @@ import { salesService } from '@/services/salesService';
 import { heldCartService } from '@/services/heldCartService';
 import { customerService } from '@/services/customerService';
 import { whatsappService } from '@/services/whatsappService';
+import { pdfService } from '@/services/pdfService';
+import { shareService } from '@/services/shareService';
+import { loyaltyService } from '@/services/loyaltyService';
 import { formatKSh } from '@/utils/format';
+import { successBeep } from '@/utils/beep';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
@@ -38,40 +43,42 @@ export default function POS() {
   const { user } = useAuth();
   const { activeShift } = useShift();
 
-  // ---------- Data ----------
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [orders, setOrders] = useState([]);
   const [heldCarts, setHeldCarts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ---------- Filters ----------
   const [activeCategory, setActiveCategory] = useState('All');
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 120);
 
-  // ---------- Cart ----------
   const [cart, setCart] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [cashier, setCashier] = useState(user?.fullName?.trim() || 'Owner');
   const [customer, setCustomer] = useState(null);
 
-  // ---------- Grid focus ----------
   const [focusedIndex, setFocusedIndex] = useState(0);
 
-  // ---------- Modals ----------
   const [showCheckout, setShowCheckout] = useState(false);
   const [showMpesa, setShowMpesa] = useState(false);
   const [showHold, setShowHold] = useState(false);
   const [showCustomer, setShowCustomer] = useState(false);
   const [showWhatsApp, setShowWhatsApp] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showCash, setShowCash] = useState(false);
   const [holdLabel, setHoldLabel] = useState('');
   const [lastReceipt, setLastReceipt] = useState(null);
   const [lastReceiptPhone, setLastReceiptPhone] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [processing, setProcessing] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+
+  const [paymentMode, setPaymentMode] = useState('CASH');
+  const [cashAmount, setCashAmount] = useState('');
+  const [mpesaAmount, setMpesaAmount] = useState('');
+  const [mpesaRef, setMpesaRef] = useState('');
+  const [mpesaOpen, setMpesaOpen] = useState(false);
+  const [redeemPoints, setRedeemPoints] = useState(0);
 
   const searchRef = useRef(null);
   const gridRef = useRef(null);
@@ -83,10 +90,11 @@ export default function POS() {
     showCustomer ||
     showWhatsApp ||
     showScanner ||
+    showCash ||
+    mpesaOpen ||
     !!lastReceipt ||
     confirmClear;
 
-  // ---------- Load ----------
   const load = useCallback(async () => {
     const [prods, cats, ords, held] = await Promise.all([
       productService.list(),
@@ -117,7 +125,10 @@ export default function POS() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.fullName]);
 
-  // ---------- Visible products ----------
+  useEffect(() => {
+    setRedeemPoints(0);
+  }, [customer?.id]);
+
   const visibleProducts = useMemo(() => {
     const q = debouncedSearch.toLowerCase().trim();
     return products.filter(p => {
@@ -135,7 +146,6 @@ export default function POS() {
     setFocusedIndex(0);
   }, [debouncedSearch, activeCategory]);
 
-  // ---------- Quick keys ----------
   const quickKeys = useMemo(() => {
     const sold = new Map();
     orders
@@ -152,7 +162,6 @@ export default function POS() {
       .slice(0, 8);
   }, [products, orders]);
 
-  // ---------- Cart operations ----------
   const addToCart = useCallback(
     product => {
       setCart(prev => {
@@ -197,42 +206,42 @@ export default function POS() {
     );
 
   const remove = id => setCart(prev => prev.filter(i => i.id !== id));
-
   const clearCart = () => {
     setCart([]);
     setDiscount(0);
     setCustomer(null);
   };
 
-  // ---------- Totals ----------
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const taxable = Math.max(0, subtotal - discount);
   const tax = taxable * TAX_RATE;
   const total = taxable + tax;
 
-  // ---------- Barcode handling ----------
-  // Used by: the software barcode scanner hook (USB scanner),
-  //          the camera scanner modal, and manual entry from the camera modal.
+  // Loyalty math
+  const loyaltyBalance = customer ? loyaltyService.balance(customer.id) : 0;
+  const maxRedeem = customer
+    ? loyaltyService.maxRedeemable(customer.id, total)
+    : { points: 0, value: 0 };
+  const loyaltyDiscount = loyaltyService.pointsToValue(redeemPoints);
+  const totalAfterLoyalty = Math.max(0, total - loyaltyDiscount);
+
   const handleBarcodeScan = useCallback(
     code => {
       const trimmed = String(code || '').trim();
       if (!trimmed) return;
-
       const match = products.find(
         p =>
           (p.sku && p.sku.toLowerCase() === trimmed.toLowerCase()) ||
           (p.barcode && String(p.barcode) === trimmed)
       );
-
       if (match) {
         if (match.stock === 0) {
           toast.error(`${match.name} is out of stock.`);
           return;
         }
         addToCart(match);
-        toast.success(`Added ${match.name}`);
+        toast.success(`Added ${match.name}`, { duration: 1200 });
         setSearch('');
-        setTimeout(() => searchRef.current?.focus(), 30);
       } else {
         toast.error(`No product found for code ${trimmed}.`);
       }
@@ -240,10 +249,8 @@ export default function POS() {
     [products, addToCart, toast]
   );
 
-  // USB / Bluetooth barcode scanner (behaves as a keyboard)
   useBarcodeScanner(handleBarcodeScan, { enabled: !anyModalOpen });
 
-  // ---------- Search Enter behaviour ----------
   const onSearchKeyDown = e => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -258,9 +265,8 @@ export default function POS() {
           (p.barcode && String(p.barcode) === q)
       );
       if (exact) {
-        if (exact.stock === 0) {
-          toast.error(`${exact.name} is out of stock.`);
-        } else {
+        if (exact.stock === 0) toast.error(`${exact.name} is out of stock.`);
+        else {
           addToCart(exact);
           setSearch('');
           toast.success(`Added ${exact.name}`);
@@ -269,9 +275,8 @@ export default function POS() {
       }
       if (visibleProducts.length === 1) {
         const only = visibleProducts[0];
-        if (only.stock === 0) {
-          toast.error(`${only.name} is out of stock.`);
-        } else {
+        if (only.stock === 0) toast.error(`${only.name} is out of stock.`);
+        else {
           addToCart(only);
           setSearch('');
           toast.success(`Added ${only.name}`);
@@ -285,28 +290,25 @@ export default function POS() {
     }
   };
 
-  // ---------- Grid keyboard nav ----------
   const onGridKeyDown = e => {
     if (visibleProducts.length === 0) return;
-
     const readColumns = () => {
       if (!gridRef.current) return 1;
       const cols = getComputedStyle(gridRef.current).gridTemplateColumns;
       return cols.split(' ').filter(Boolean).length || 1;
     };
-
     const cols = readColumns();
-    const total = visibleProducts.length;
+    const totalLen = visibleProducts.length;
 
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      setFocusedIndex(i => Math.min(i + 1, total - 1));
+      setFocusedIndex(i => Math.min(i + 1, totalLen - 1));
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
       setFocusedIndex(i => Math.max(i - 1, 0));
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setFocusedIndex(i => Math.min(i + cols, total - 1));
+      setFocusedIndex(i => Math.min(i + cols, totalLen - 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setFocusedIndex(i => Math.max(i - cols, 0));
@@ -315,7 +317,7 @@ export default function POS() {
       setFocusedIndex(0);
     } else if (e.key === 'End') {
       e.preventDefault();
-      setFocusedIndex(total - 1);
+      setFocusedIndex(totalLen - 1);
     } else if (e.key === 'Enter') {
       e.preventDefault();
       const product = visibleProducts[focusedIndex];
@@ -326,7 +328,18 @@ export default function POS() {
     }
   };
 
-  // ---------- Global hotkeys ----------
+  const openCheckout = useCallback(() => {
+    if (!cart.length) {
+      toast.warning('Cart is empty.');
+      return;
+    }
+    setPaymentMode('CASH');
+    setCashAmount('');
+    setMpesaAmount('');
+    setMpesaRef('');
+    setShowCheckout(true);
+  }, [cart.length, toast]);
+
   useKeyboardShortcut(
     () => {
       searchRef.current?.focus();
@@ -334,31 +347,8 @@ export default function POS() {
     },
     { key: 'F2', enabled: !anyModalOpen }
   );
-
-  useKeyboardShortcut(
-    () => {
-      if (!cart.length) {
-        toast.warning('Cart is empty.');
-        return;
-      }
-      setPaymentMethod('CASH');
-      setShowCheckout(true);
-    },
-    { key: 'F4', enabled: !anyModalOpen }
-  );
-
-  useKeyboardShortcut(
-    () => {
-      if (!cart.length) {
-        toast.warning('Cart is empty.');
-        return;
-      }
-      setPaymentMethod('CASH');
-      setShowCheckout(true);
-    },
-    { key: 'F8', enabled: !anyModalOpen }
-  );
-
+  useKeyboardShortcut(openCheckout, { key: 'F4', enabled: !anyModalOpen });
+  useKeyboardShortcut(openCheckout, { key: 'F8', enabled: !anyModalOpen });
   useKeyboardShortcut(
     () => {
       if (!cart.length) return;
@@ -366,7 +356,6 @@ export default function POS() {
     },
     { key: 'F9', enabled: !anyModalOpen }
   );
-
   useKeyboardShortcut(
     () => {
       if (!cart.length) {
@@ -379,7 +368,6 @@ export default function POS() {
     { key: 'F10', enabled: !anyModalOpen }
   );
 
-  // ---------- Hold / Recall ----------
   const confirmHold = async () => {
     await heldCartService.hold({ items: cart, label: holdLabel, cashier });
     setShowHold(false);
@@ -417,9 +405,8 @@ export default function POS() {
   };
 
   // ---------- Complete sale ----------
-  const complete = async (method, reference) => {
+  const complete = async ({ method, reference, payments, cash, useLoyalty }) => {
     if (!cart.length) return;
-
     if (method === 'On credit' && !customer) {
       toast.error('Select a customer for a credit sale.');
       return;
@@ -427,42 +414,95 @@ export default function POS() {
 
     setProcessing(true);
     try {
+      const points = useLoyalty ? Number(redeemPoints) || 0 : 0;
+      const pointsValue = loyaltyService.pointsToValue(points);
+      const finalTotal = Math.max(0, total - pointsValue);
+
+      let finalPayments = payments;
+      if (points > 0 && Array.isArray(payments) && payments.length > 0) {
+        const first = payments[0];
+        const adjusted = {
+          ...first,
+          amount: Math.max(0, Number(first.amount) - pointsValue),
+        };
+        finalPayments = [adjusted, ...payments.slice(1)].filter(
+          p => Number(p.amount) > 0.005
+        );
+      }
+
       const order = await salesService.create({
         items: cart,
         subtotal,
         tax,
         discount,
-        total,
+        total: finalTotal,
         method,
         reference,
+        payments: finalPayments,
         customerId: customer?.id || null,
         customerName: customer?.name || null,
         cashier: cashier.trim() || 'Owner',
         shiftId: activeShift?.id || null,
       });
 
+      // Loyalty write
+      let loyaltyResult = null;
+      if (customer?.id) {
+        if (points > 0) {
+          await loyaltyService.redeem({
+            customerId: customer.id,
+            points,
+            orderId: order.id,
+          });
+        }
+        const earned = loyaltyService.pointsForAmount(finalTotal);
+        if (earned > 0) {
+          await loyaltyService.earn({
+            customerId: customer.id,
+            amount: finalTotal,
+            orderId: order.id,
+          });
+        }
+        loyaltyResult = {
+          pointsEarned: earned,
+          pointsRedeemed: points,
+          valueRedeemed: pointsValue,
+          balance: loyaltyService.balance(customer.id),
+        };
+      }
+
       setLastReceipt({
-        ref: reference || `CASH-${order.id}`,
-        method,
-        total,
+        ref:
+          reference ||
+          (order.payments?.length > 1 ? 'SPLIT' : `CASH-${order.id}`),
+        method: order.method,
+        payments:
+          order.payments || [{ method: order.method, amount: finalTotal }],
+        total: finalTotal,
         subtotal,
         tax,
         discount,
+        loyaltyDiscount: pointsValue,
         items: cart,
         time: new Date(),
         orderId: order.id,
         cashier,
         customer: customer?.name || 'Walk-in',
         customerId: customer?.id || null,
+        loyalty: loyaltyResult,
+        cash: cash || null,
       });
 
+      successBeep();
       clearCart();
       setShowCheckout(false);
       setShowMpesa(false);
+      setShowCash(false);
+      setRedeemPoints(0);
       toast.success(
         method === 'On credit'
           ? `Credit sale recorded for ${customer.name}`
-          : `${method} sale completed · Order #${order.id}`
+          : `Sale completed · Order #${order.id}`
       );
       await load();
     } catch (e) {
@@ -472,39 +512,146 @@ export default function POS() {
     }
   };
 
-  const openCheckout = () => {
-    if (!cart.length) {
-      toast.warning('Cart is empty.');
-      return;
-    }
-    setPaymentMethod('CASH');
-    setShowCheckout(true);
-  };
-
-  const startMpesa = () => {
+  // ---------- M-Pesa flows ----------
+  const startFullMpesa = () => {
     setShowCheckout(false);
     setShowMpesa(true);
   };
 
-  // ---------- WhatsApp receipt ----------
-  const openWhatsAppForReceipt = async () => {
+  const startSplitMpesa = () => {
+    if (splitMpesa <= 0) {
+      toast.warning('Enter an M-Pesa amount first.');
+      return;
+    }
+    setMpesaOpen(true);
+  };
+
+  const handleMpesaSuccess = ref => {
+    if (showMpesa) {
+      complete({
+        method: 'M-Pesa',
+        reference: ref,
+        useLoyalty: redeemPoints > 0,
+      });
+      return;
+    }
+    setMpesaRef(ref);
+    setMpesaOpen(false);
+    toast.success('M-Pesa request approved. Confirm to complete the sale.');
+  };
+
+  // Split math
+  const splitCash = Number(cashAmount) || 0;
+  const splitMpesa = Number(mpesaAmount) || 0;
+  const splitSum = splitCash + splitMpesa;
+  const splitRemaining = Math.max(0, totalAfterLoyalty - splitSum);
+  const splitValid =
+    splitSum <= totalAfterLoyalty + 0.01 &&
+    splitSum >= totalAfterLoyalty - 0.01 &&
+    (splitCash > 0 || splitMpesa > 0);
+
+  const confirmSplit = async () => {
+    if (!splitValid) {
+      toast.warning('Cash + M-Pesa must equal the total.');
+      return;
+    }
+    if (splitMpesa > 0 && !mpesaRef) {
+      toast.warning('Send the M-Pesa request first, or set M-Pesa to 0.');
+      return;
+    }
+    const payments = [];
+    if (splitCash > 0)
+      payments.push({ method: 'Cash', amount: splitCash, reference: null });
+    if (splitMpesa > 0)
+      payments.push({
+        method: 'M-Pesa',
+        amount: splitMpesa,
+        reference: mpesaRef || null,
+      });
+    await complete({
+      method: 'Split',
+      reference: mpesaRef || null,
+      payments,
+      useLoyalty: redeemPoints > 0,
+    });
+  };
+
+  // ---------- Share receipt as PDF ----------
+  const shareReceipt = async () => {
     if (!lastReceipt) return;
-    let phone = '';
-    if (lastReceipt.customerId) {
+    let blob;
+    try {
+      const pdfItems = lastReceipt.items.map(i => ({
+        description: i.name,
+        qty: i.qty,
+        unitPrice: i.price,
+        total: i.qty * i.price,
+      }));
+      const totalsMap = {
+        Subtotal: lastReceipt.subtotal,
+        'VAT (16%)': lastReceipt.tax,
+      };
+      if (lastReceipt.discount > 0)
+        totalsMap.Discount = -lastReceipt.discount;
+      if (lastReceipt.loyaltyDiscount > 0)
+        totalsMap['Loyalty discount'] = -lastReceipt.loyaltyDiscount;
+      totalsMap.Total = lastReceipt.total;
+
+      blob = await pdfService.generateInvoicePdf({
+        documentType: 'RECEIPT',
+        documentNumber: `#${lastReceipt.orderId}`,
+        issuedDate: new Date(lastReceipt.time).toLocaleString('en-KE', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        business,
+        partyLabel: 'Customer',
+        party: { name: lastReceipt.customer || 'Walk-in customer' },
+        items: pdfItems,
+        totals: totalsMap,
+        payments: lastReceipt.payments || [],
+        loyalty: lastReceipt.loyalty || null,
+        cash: lastReceipt.cash || null,
+        notes: business.receiptFooter || 'Thank you for shopping with us.',
+        meta: [
+          { label: 'Cashier', value: lastReceipt.cashier || 'Owner' },
+        ],
+      });
+    } catch (err) {
+      toast.error('Could not generate the receipt PDF.');
+      return;
+    }
+
+    const filename = `receipt-${lastReceipt.orderId}.pdf`;
+    const text =
+      `${business.name || 'Your business'} — Receipt #${lastReceipt.orderId}\n` +
+      `Total: ${formatKSh(lastReceipt.total)}\n\n` +
+      `Thank you for shopping with us.`;
+
+    const shareResult = await shareService.tryShareFile({
+      blob,
+      filename,
+      title: `Receipt #${lastReceipt.orderId}`,
+      text,
+    });
+    if (shareResult.ok) return;
+
+    shareService.downloadBlob(blob, filename);
+
+    let phone = lastReceiptPhone;
+    if (!phone && lastReceipt.customerId) {
       try {
         const c = await customerService.get(lastReceipt.customerId);
-        if (c?.phone) phone = c.phone;
+        phone = c?.phone || '';
       } catch {
-        // ignore — the cashier can type the number manually
+        phone = '';
       }
     }
     setLastReceiptPhone(phone);
     setShowWhatsApp(true);
-  };
-
-  // ---------- Camera scanner handler ----------
-  const openCameraScanner = () => {
-    setShowScanner(true);
   };
 
   // ---------- Loading / Empty ----------
@@ -512,16 +659,9 @@ export default function POS() {
     return (
       <div
         className="pos"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
+        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
-        <div
-          className="skeleton"
-          style={{ height: '80%', width: '100%', borderRadius: 18 }}
-        />
+        <div className="skeleton" style={{ height: '80%', width: '100%', borderRadius: 18 }} />
       </div>
     );
   }
@@ -571,7 +711,6 @@ export default function POS() {
     );
   }
 
-  // ---------- WhatsApp message ----------
   const whatsappMessage = lastReceipt
     ? whatsappService.buildReceiptMessage({
         business,
@@ -589,8 +728,7 @@ export default function POS() {
           total: lastReceipt.total,
           method: lastReceipt.method,
           reference: lastReceipt.ref,
-          paymentStatus:
-            lastReceipt.method === 'On credit' ? 'credit' : 'paid',
+          paymentStatus: lastReceipt.method === 'On credit' ? 'credit' : 'paid',
           customer: lastReceipt.customer,
           cashier: lastReceipt.cashier,
         },
@@ -600,7 +738,6 @@ export default function POS() {
 
   return (
     <div className="pos">
-      {/* LEFT: categories + search */}
       <aside className="pos-cats">
         <div className="pos-search-row">
           <Input
@@ -614,7 +751,7 @@ export default function POS() {
           <button
             type="button"
             className="pos-scan-btn"
-            onClick={openCameraScanner}
+            onClick={() => setShowScanner(true)}
             title="Scan barcode with camera"
             aria-label="Scan barcode with camera"
           >
@@ -643,32 +780,16 @@ export default function POS() {
         <div className="pos-shortcuts">
           <div className="pos-shortcuts-title">Shortcuts</div>
           <ul>
-            <li>
-              <kbd>F2</kbd> Search
-            </li>
-            <li>
-              <kbd>↑</kbd>
-              <kbd>↓</kbd>
-              <kbd>←</kbd>
-              <kbd>→</kbd> Grid
-            </li>
-            <li>
-              <kbd>↵</kbd> Add focused
-            </li>
-            <li>
-              <kbd>F4</kbd> Checkout
-            </li>
-            <li>
-              <kbd>F9</kbd> Clear cart
-            </li>
-            <li>
-              <kbd>F10</kbd> Hold cart
-            </li>
+            <li><kbd>F2</kbd> Search</li>
+            <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> Grid</li>
+            <li><kbd>↵</kbd> Add focused</li>
+            <li><kbd>F4</kbd> Checkout</li>
+            <li><kbd>F9</kbd> Clear cart</li>
+            <li><kbd>F10</kbd> Hold cart</li>
           </ul>
         </div>
       </aside>
 
-      {/* CENTER: quick keys + grid */}
       <main className="pos-main">
         <div className="pos-main-head">
           <h1 className="pos-title">Point of Sale</h1>
@@ -700,7 +821,6 @@ export default function POS() {
         />
       </main>
 
-      {/* RIGHT: cart */}
       <aside className="pos-cart">
         <button
           type="button"
@@ -728,12 +848,12 @@ export default function POS() {
         />
       </aside>
 
-      {/* ---------- Checkout modal ---------- */}
+      {/* Checkout modal */}
       <Modal
         open={showCheckout}
         onClose={() => setShowCheckout(false)}
         title="Complete payment"
-        subtitle={`Total: ${formatKSh(total)}`}
+        subtitle={`Total: ${formatKSh(totalAfterLoyalty)}`}
         size="sm"
       >
         <div className="stack gap-16">
@@ -754,34 +874,54 @@ export default function POS() {
             </div>
           )}
 
-          <div className="co-methods">
-            <button
-              type="button"
-              className={`pay-method ${paymentMethod === 'CASH' ? 'on' : ''}`}
-              onClick={() => setPaymentMethod('CASH')}
-            >
-              Cash
-            </button>
-            <button
-              type="button"
-              className={`pay-method ${paymentMethod === 'MPESA' ? 'on' : ''}`}
-              onClick={() => setPaymentMethod('MPESA')}
-            >
-              M-Pesa
-            </button>
-            <button
-              type="button"
-              className={`pay-method ${paymentMethod === 'CREDIT' ? 'on' : ''}`}
-              onClick={() => {
-                if (!customer) {
-                  setShowCustomer(true);
-                } else {
-                  setPaymentMethod('CREDIT');
-                }
-              }}
-            >
-              On credit
-            </button>
+          {customer && loyaltyBalance > 0 && maxRedeem.points > 0 && (
+            <div className="co-loyalty">
+              <div className="co-loyalty-head">
+                <Sparkles size={14} />
+                <div>
+                  <div className="co-loyalty-title">Loyalty points</div>
+                  <div className="co-loyalty-sub">
+                    {customer.name} has <strong>{loyaltyBalance}</strong> points
+                  </div>
+                </div>
+              </div>
+              <label className="co-loyalty-check">
+                <input
+                  type="checkbox"
+                  checked={redeemPoints > 0}
+                  onChange={e =>
+                    setRedeemPoints(e.target.checked ? maxRedeem.points : 0)
+                  }
+                />
+                <span>
+                  Redeem {maxRedeem.points} points for {formatKSh(maxRedeem.value)} off
+                </span>
+              </label>
+            </div>
+          )}
+
+          <div className="co-mode-tabs">
+            {[
+              { id: 'CASH', label: 'Cash' },
+              { id: 'MPESA', label: 'M-Pesa' },
+              { id: 'SPLIT', label: 'Split' },
+              { id: 'CREDIT', label: 'Credit' },
+            ].map(m => (
+              <button
+                key={m.id}
+                type="button"
+                className={`co-mode-tab ${paymentMode === m.id ? 'on' : ''}`}
+                onClick={() => {
+                  if (m.id === 'CREDIT' && !customer) {
+                    setShowCustomer(true);
+                  } else {
+                    setPaymentMode(m.id);
+                  }
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
 
           <div className="field">
@@ -796,69 +936,157 @@ export default function POS() {
             </div>
           </div>
 
-          {paymentMethod === 'CASH' && (
-            <>
-              <div className="checkout-summary">
-                <div className="row between">
-                  <span className="muted">Subtotal</span>
-                  <span className="mono">{formatKSh(subtotal)}</span>
-                </div>
-                {discount > 0 && (
-                  <div className="row between">
-                    <span className="muted">Discount</span>
-                    <span className="mono">-{formatKSh(discount)}</span>
-                  </div>
-                )}
-                <div className="row between">
-                  <span className="muted">VAT (16%)</span>
-                  <span className="mono">{formatKSh(tax)}</span>
-                </div>
-                <div className="row between total">
-                  <span>Total</span>
-                  <span className="mono">{formatKSh(total)}</span>
-                </div>
+          <div className="checkout-summary">
+            <div className="row between">
+              <span className="muted">Subtotal</span>
+              <span className="mono">{formatKSh(subtotal)}</span>
+            </div>
+            {discount > 0 && (
+              <div className="row between">
+                <span className="muted">Discount</span>
+                <span className="mono">-{formatKSh(discount)}</span>
               </div>
-              <Button
-                full
-                size="lg"
-                loading={processing}
-                onClick={() => complete('Cash', null)}
-              >
-                Confirm cash payment
-              </Button>
-            </>
+            )}
+            <div className="row between">
+              <span className="muted">VAT (16%)</span>
+              <span className="mono">{formatKSh(tax)}</span>
+            </div>
+            {loyaltyDiscount > 0 && (
+              <div className="row between">
+                <span className="muted">Loyalty</span>
+                <span className="mono">-{formatKSh(loyaltyDiscount)}</span>
+              </div>
+            )}
+            <div className="row between total">
+              <span>Total</span>
+              <span className="mono">{formatKSh(totalAfterLoyalty)}</span>
+            </div>
+          </div>
+
+          {paymentMode === 'CASH' && (
+            <Button
+              full
+              size="lg"
+              loading={processing}
+              onClick={() => setShowCash(true)}
+            >
+              Enter cash amount
+            </Button>
           )}
 
-          {paymentMethod === 'MPESA' && (
+          {paymentMode === 'MPESA' && (
             <>
-              <p
-                style={{
-                  margin: 0,
-                  color: 'var(--text-muted)',
-                  fontSize: 13.5,
-                }}
-              >
+              <p className="co-help">
                 Send an STK push to the customer's phone to collect payment via
                 M-Pesa.
               </p>
-              <Button full size="lg" onClick={startMpesa}>
+              <Button full size="lg" onClick={startFullMpesa}>
                 Continue to M-Pesa
               </Button>
             </>
           )}
 
-          {paymentMethod === 'CREDIT' && customer && (
+          {paymentMode === 'SPLIT' && (
+            <div className="stack gap-14">
+              <p className="co-help">
+                Split the total across cash and M-Pesa.
+              </p>
+
+              <div className="co-split-row">
+                <div className="co-split-label">Cash</div>
+                <div className="co-split-input-wrap">
+                  <span className="co-split-cur">KSh</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="co-split-input mono"
+                    value={cashAmount}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setCashAmount(v);
+                      const cash = Number(v) || 0;
+                      const rest = Math.max(0, totalAfterLoyalty - cash);
+                      setMpesaAmount(rest > 0 ? String(Math.round(rest)) : '0');
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="co-split-row">
+                <div className="co-split-label">M-Pesa</div>
+                <div className="co-split-input-wrap">
+                  <span className="co-split-cur">KSh</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="co-split-input mono"
+                    value={mpesaAmount}
+                    onChange={e => {
+                      const v = e.target.value;
+                      setMpesaAmount(v);
+                      const mp = Number(v) || 0;
+                      const rest = Math.max(0, totalAfterLoyalty - mp);
+                      setCashAmount(rest > 0 ? String(Math.round(rest)) : '0');
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className={`co-split-summary ${splitValid ? 'ok' : 'warn'}`}>
+                <span>Assigned</span>
+                <span className="mono">{formatKSh(splitSum)}</span>
+                {splitRemaining > 0.01 && (
+                  <>
+                    <span className="co-split-rem-label">Remaining</span>
+                    <span className="mono">{formatKSh(splitRemaining)}</span>
+                  </>
+                )}
+              </div>
+
+              {splitMpesa > 0 && (
+                <div className="co-split-mpesa">
+                  {mpesaRef ? (
+                    <div className="co-split-mpesa-ok">
+                      M-Pesa approved · Ref {mpesaRef}
+                    </div>
+                  ) : (
+                    <Button variant="outline" full onClick={startSplitMpesa}>
+                      Send M-Pesa request for {formatKSh(splitMpesa)}
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              <Button
+                full
+                size="lg"
+                loading={processing}
+                disabled={!splitValid || (splitMpesa > 0 && !mpesaRef)}
+                onClick={confirmSplit}
+              >
+                Complete sale
+              </Button>
+            </div>
+          )}
+
+          {paymentMode === 'CREDIT' && customer && (
             <>
               <div className="co-credit-note">
-                <strong>{customer.name}</strong> will owe {formatKSh(total)}{' '}
-                after this sale. You can record a payment later from their
-                profile.
+                <strong>{customer.name}</strong> will owe{' '}
+                {formatKSh(totalAfterLoyalty)} after this sale.
               </div>
               <Button
                 full
                 size="lg"
                 loading={processing}
-                onClick={() => complete('On credit', null)}
+                onClick={() =>
+                  complete({
+                    method: 'On credit',
+                    useLoyalty: redeemPoints > 0,
+                  })
+                }
               >
                 Record credit sale
               </Button>
@@ -867,28 +1095,45 @@ export default function POS() {
         </div>
       </Modal>
 
-      {/* ---------- M-Pesa modal ---------- */}
+      {/* Cash modal */}
+      <CashPaymentModal
+        open={showCash}
+        total={totalAfterLoyalty}
+        busy={processing}
+        onClose={() => setShowCash(false)}
+        onConfirm={({ tendered, change }) => {
+          complete({
+            method: 'Cash',
+            cash: { tendered, change },
+            useLoyalty: redeemPoints > 0,
+          });
+        }}
+      />
+
+      {/* M-Pesa modals */}
       <MpesaModal
         open={showMpesa}
         onClose={() => setShowMpesa(false)}
-        amount={total}
-        onSuccess={ref => complete('M-Pesa', ref)}
+        amount={totalAfterLoyalty}
+        onSuccess={handleMpesaSuccess}
+      />
+      <MpesaModal
+        open={mpesaOpen}
+        onClose={() => setMpesaOpen(false)}
+        amount={splitMpesa}
+        onSuccess={handleMpesaSuccess}
       />
 
-      {/* ---------- Hold modal ---------- */}
+      {/* Hold modal */}
       <Modal
         open={showHold}
         onClose={() => setShowHold(false)}
         title="Hold this cart"
-        subtitle={`${cart.length} item${
-          cart.length === 1 ? '' : 's'
-        } · ${formatKSh(total)}`}
+        subtitle={`${cart.length} item${cart.length === 1 ? '' : 's'} · ${formatKSh(total)}`}
         size="sm"
         footer={
           <>
-            <Button variant="outline" onClick={() => setShowHold(false)}>
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setShowHold(false)}>Cancel</Button>
             <Button onClick={confirmHold}>Hold cart</Button>
           </>
         }
@@ -910,7 +1155,6 @@ export default function POS() {
         </div>
       </Modal>
 
-      {/* ---------- Clear confirm ---------- */}
       <ConfirmDialog
         open={confirmClear}
         onClose={() => setConfirmClear(false)}
@@ -923,12 +1167,12 @@ export default function POS() {
         confirmLabel="Clear cart"
       />
 
-      {/* ---------- Receipt modal ---------- */}
+      {/* Receipt modal */}
       <Modal
         open={!!lastReceipt}
         onClose={() => setLastReceipt(null)}
         title="Sale completed"
-        subtitle={lastReceipt ? `Reference: ${lastReceipt.ref}` : ''}
+        subtitle={lastReceipt ? `Order #${lastReceipt.orderId}` : ''}
         size="sm"
         footer={
           <>
@@ -938,9 +1182,9 @@ export default function POS() {
             <Button
               variant="outline"
               leftIcon={<WhatsAppIcon size={14} />}
-              onClick={openWhatsAppForReceipt}
+              onClick={shareReceipt}
             >
-              WhatsApp
+              Share PDF
             </Button>
             <Button onClick={() => setLastReceipt(null)}>Done</Button>
           </>
@@ -950,31 +1194,23 @@ export default function POS() {
           <div className="receipt print-area">
             <div className="receipt-head">
               <div className="receipt-brand">Sokoni</div>
-              <div className="receipt-shop">
-                {business.name || 'Your Business'}
-              </div>
+              <div className="receipt-shop">{business.name || 'Your Business'}</div>
               {(business.location || business.phone) && (
                 <div className="receipt-meta">
-                  {[business.location, business.phone]
-                    .filter(Boolean)
-                    .join(' · ')}
+                  {[business.location, business.phone].filter(Boolean).join(' · ')}
                 </div>
               )}
               <div className="receipt-meta">
                 {new Date(lastReceipt.time).toLocaleString('en-KE')}
               </div>
               {lastReceipt.cashier && (
-                <div className="receipt-meta">
-                  Cashier: {lastReceipt.cashier}
-                </div>
+                <div className="receipt-meta">Cashier: {lastReceipt.cashier}</div>
               )}
-              {lastReceipt.customer &&
-                lastReceipt.customer !== 'Walk-in' && (
-                  <div className="receipt-meta">
-                    Customer: {lastReceipt.customer}
-                  </div>
-                )}
+              {lastReceipt.customer && lastReceipt.customer !== 'Walk-in' && (
+                <div className="receipt-meta">Customer: {lastReceipt.customer}</div>
+              )}
             </div>
+
             <div className="receipt-items">
               {lastReceipt.items.map(i => (
                 <div key={i.id} className="receipt-row">
@@ -985,15 +1221,69 @@ export default function POS() {
                 </div>
               ))}
             </div>
+
+            {lastReceipt.payments && lastReceipt.payments.length > 0 && (
+              <div className="receipt-payments">
+                {lastReceipt.payments.map((p, idx) => (
+                  <div key={idx} className="receipt-payment-row">
+                    <span>
+                      {p.method === 'On credit' ? 'On credit' : p.method}
+                      {p.reference ? ` · ${p.reference}` : ''}
+                    </span>
+                    <span className="mono">{formatKSh(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {lastReceipt.loyaltyDiscount > 0 && (
+              <div className="receipt-payments">
+                <div className="receipt-payment-row">
+                  <span>Loyalty discount</span>
+                  <span className="mono">-{formatKSh(lastReceipt.loyaltyDiscount)}</span>
+                </div>
+              </div>
+            )}
+
             <div className="receipt-total">
               <span>Total</span>
               <span className="mono">{formatKSh(lastReceipt.total)}</span>
             </div>
-            <div className="receipt-pay">
-              {lastReceipt.method === 'On credit'
-                ? `On credit — charged to ${lastReceipt.customer}`
-                : `Paid via ${lastReceipt.method} · Ref ${lastReceipt.ref}`}
-            </div>
+
+            {lastReceipt.cash && lastReceipt.cash.tendered !== undefined && (
+              <div className="receipt-payments">
+                <div className="receipt-payment-row">
+                  <span>Cash received</span>
+                  <span className="mono">{formatKSh(lastReceipt.cash.tendered)}</span>
+                </div>
+                <div className="receipt-payment-row">
+                  <span>Change</span>
+                  <span className="mono">{formatKSh(lastReceipt.cash.change)}</span>
+                </div>
+              </div>
+            )}
+
+            {lastReceipt.loyalty && (
+              <div className="receipt-loyalty">
+                {lastReceipt.loyalty.pointsEarned > 0 && (
+                  <div className="receipt-payment-row">
+                    <span>Points earned</span>
+                    <span className="mono">+{lastReceipt.loyalty.pointsEarned}</span>
+                  </div>
+                )}
+                {lastReceipt.loyalty.pointsRedeemed > 0 && (
+                  <div className="receipt-payment-row">
+                    <span>Points redeemed</span>
+                    <span className="mono">-{lastReceipt.loyalty.pointsRedeemed}</span>
+                  </div>
+                )}
+                <div className="receipt-payment-row">
+                  <span>Points balance</span>
+                  <span className="mono">{lastReceipt.loyalty.balance}</span>
+                </div>
+              </div>
+            )}
+
             {business.receiptFooter && (
               <div className="receipt-pay">{business.receiptFooter}</div>
             )}
@@ -1001,7 +1291,6 @@ export default function POS() {
         )}
       </Modal>
 
-      {/* ---------- WhatsApp share ---------- */}
       {lastReceipt && (
         <WhatsAppShareModal
           open={showWhatsApp}
@@ -1013,11 +1302,10 @@ export default function POS() {
               : ''
           }
           message={whatsappMessage}
-          title="Send receipt on WhatsApp"
+          title="Send receipt text on WhatsApp"
         />
       )}
 
-      {/* ---------- Customer picker ---------- */}
       <CustomerPicker
         open={showCustomer}
         selected={customer}
@@ -1032,60 +1320,144 @@ export default function POS() {
         onClose={() => setShowCustomer(false)}
       />
 
-      {/* ---------- Camera barcode scanner ---------- */}
       <BarcodeScannerModal
         open={showScanner}
         onClose={() => setShowScanner(false)}
         onScan={handleBarcodeScan}
-        title="Scan product"
-        subtitle="Point the camera at a barcode to add it to the cart"
+        title="Scan products"
+        subtitle="Point the camera at barcodes"
+        multiScan
         manualLabel="Type the code instead"
         onManualEntry={handleBarcodeScan}
       />
 
       <style>{`
-        .pos-search-row {
-          display: flex;
-          gap: 8px;
-          align-items: stretch;
-        }
-        .pos-search-row > .field {
-          flex: 1;
-          min-width: 0;
-        }
+        .pos-search-row { display: flex; gap: 8px; align-items: stretch; }
+        .pos-search-row > .field { flex: 1; min-width: 0; }
         .pos-scan-btn {
-          width: 42px;
-          height: 42px;
-          flex-shrink: 0;
-          border-radius: 12px;
-          background: var(--primary);
-          color: #fff;
-          border: 0;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          cursor: pointer;
-          transition: background 160ms ease, transform 160ms ease;
+          width: 42px; height: 42px; flex-shrink: 0;
+          border-radius: 12px; background: var(--primary); color: #fff;
+          border: 0; display: flex; align-items: center; justify-content: center;
+          cursor: pointer; transition: background 160ms ease, transform 160ms ease;
           box-shadow: 0 6px 18px rgba(109, 94, 252, 0.28);
         }
-        .pos-scan-btn:hover {
-          background: var(--primary-600);
+        .pos-scan-btn:hover { background: var(--primary-600); }
+        .pos-scan-btn:active { transform: scale(0.96); }
+
+        .co-mode-tabs {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 4px;
+          padding: 4px;
+          background: var(--bg-soft);
+          border-radius: 12px;
         }
-        .pos-scan-btn:active {
-          transform: scale(0.96);
+        .co-mode-tab {
+          padding: 9px 8px;
+          border-radius: 9px;
+          border: 0;
+          background: transparent;
+          font-size: 12.5px;
+          font-weight: 600;
+          color: var(--text-muted);
+          cursor: pointer;
+          transition: all 160ms ease;
+        }
+        .co-mode-tab.on {
+          background: #fff;
+          color: var(--text);
+          box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+        }
+        .co-mode-tab:hover:not(.on) { color: var(--text); }
+
+        .co-help {
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 12.5px;
+          line-height: 1.55;
         }
 
-        .pay-method {
-          flex: 1; padding: 12px; border-radius: 12px;
-          border: 1px solid var(--border-strong); background: #fff;
-          cursor: pointer; font-weight: 600; font-size: 13.5px;
-          color: var(--text-muted); transition: all var(--dur);
+        .co-loyalty {
+          background: var(--primary-50);
+          border: 1px solid var(--primary-100);
+          border-radius: 12px;
+          padding: 12px 14px;
         }
-        .pay-method.on {
-          border-color: var(--primary); background: var(--primary-50);
-          color: var(--primary); box-shadow: 0 0 0 3px var(--primary-50);
+        .co-loyalty-head {
+          display: flex; gap: 10px; align-items: flex-start;
+          color: var(--primary);
         }
-        .co-methods { display: flex; gap: 8px; }
+        .co-loyalty-title {
+          font-size: 12px; font-weight: 700;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          color: var(--primary-700);
+        }
+        .co-loyalty-sub {
+          font-size: 12.5px; color: var(--text); margin-top: 4px;
+        }
+        .co-loyalty-check {
+          display: flex; align-items: center; gap: 10px;
+          margin-top: 10px;
+          font-size: 13px; color: var(--text);
+          cursor: pointer;
+        }
+        .co-loyalty-check input {
+          width: 16px; height: 16px;
+          accent-color: var(--primary);
+        }
+
+        .co-split-row {
+          display: grid;
+          grid-template-columns: 80px 1fr;
+          gap: 10px;
+          align-items: center;
+        }
+        .co-split-label {
+          font-size: 13px; font-weight: 600; color: var(--text);
+        }
+        .co-split-input-wrap {
+          display: flex; align-items: center; gap: 6px;
+          padding: 0 12px;
+          border: 1px solid var(--border-strong);
+          border-radius: 10px;
+          background: #fff;
+          transition: border-color 160ms ease, box-shadow 160ms ease;
+        }
+        .co-split-input-wrap:focus-within {
+          border-color: var(--primary);
+          box-shadow: 0 0 0 4px var(--primary-50);
+        }
+        .co-split-cur {
+          font-size: 12px; color: var(--text-faint); font-weight: 600;
+        }
+        .co-split-input {
+          flex: 1; min-width: 0;
+          border: 0; background: transparent;
+          padding: 10px 0;
+          font-size: 15px; font-weight: 600;
+          text-align: right; outline: none;
+          color: var(--text);
+        }
+
+        .co-split-summary {
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 14px; border-radius: 10px;
+          font-size: 12.5px; font-weight: 600;
+        }
+        .co-split-summary.ok { background: var(--success-bg); color: #15803d; }
+        .co-split-summary.warn { background: var(--warning-bg); color: #92400e; }
+        .co-split-summary > span:nth-child(2) { margin-left: auto; }
+        .co-split-rem-label { font-weight: 500; }
+        .co-split-mpesa-ok {
+          padding: 10px 14px;
+          background: var(--success-bg);
+          color: #15803d;
+          border-radius: 10px;
+          font-size: 12.5px; font-weight: 600;
+          text-align: center;
+        }
+
         .checkout-summary {
           background: var(--bg-soft); border-radius: 12px;
           padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
@@ -1095,6 +1467,7 @@ export default function POS() {
           font-weight: 700; font-size: 15px;
           padding-top: 8px; border-top: 1px dashed var(--border-strong);
         }
+
         .receipt {
           background: #fff; border: 1px dashed var(--border-strong);
           border-radius: 12px; padding: 20px;
@@ -1120,10 +1493,25 @@ export default function POS() {
           font-weight: 700; font-size: 15px; margin-top: 12px;
           padding-top: 12px; border-top: 1px dashed var(--border-strong);
         }
+        .receipt-payments {
+          margin-top: 10px; padding-top: 10px;
+          border-top: 1px dashed var(--border-strong);
+          display: flex; flex-direction: column; gap: 5px; font-size: 12px;
+        }
+        .receipt-payment-row {
+          display: flex; justify-content: space-between; color: var(--text-muted);
+        }
+        .receipt-loyalty {
+          margin-top: 10px; padding-top: 10px;
+          border-top: 1px dashed var(--border-strong);
+          display: flex; flex-direction: column; gap: 5px;
+          font-size: 12px; color: var(--primary-700);
+        }
         .receipt-pay {
           text-align: center; font-size: 11.5px;
           color: var(--text-muted); margin-top: 12px;
         }
+
         .shift-warn {
           padding: 10px 12px; background: #fffbeb;
           border: 1px solid #fcd34d; border-radius: 10px;
@@ -1144,27 +1532,19 @@ export default function POS() {
         .pos-customer {
           display: flex; align-items: center; gap: 8px;
           padding: 10px 14px; margin-bottom: 12px;
-          border-radius: 12px;
-          background: #fff;
+          border-radius: 12px; background: #fff;
           border: 1px dashed var(--border-strong);
-          color: var(--text-muted);
-          font-size: 12.5px; font-weight: 600;
-          cursor: pointer;
-          transition: all var(--dur);
+          color: var(--text-muted); font-size: 12.5px; font-weight: 600;
+          cursor: pointer; transition: all var(--dur);
         }
-        .pos-customer:hover {
-          border-color: var(--primary); color: var(--primary);
-        }
+        .pos-customer:hover { border-color: var(--primary); color: var(--primary); }
         .pos-customer.on {
-          border-style: solid;
-          border-color: var(--primary);
-          background: var(--primary-50);
-          color: var(--primary-700);
+          border-style: solid; border-color: var(--primary);
+          background: var(--primary-50); color: var(--primary-700);
         }
         .pos-customer-name {
-          flex: 1; min-width: 0;
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-          text-align: left;
+          flex: 1; min-width: 0; white-space: nowrap;
+          overflow: hidden; text-overflow: ellipsis; text-align: left;
         }
       `}</style>
     </div>

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Edit2, Filter, Package, Plus, QrCode, Search, Trash2 } from 'lucide-react';
+import {
+  Edit2, Filter, Package, Plus, QrCode, Search, Trash2,
+} from 'lucide-react';
 import Card from '@/components/common/Card';
 import Badge from '@/components/common/Badge';
 import Button from '@/components/common/Button';
@@ -8,6 +10,7 @@ import Table from '@/components/common/Table';
 import Modal from '@/components/common/Modal';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import LimitGate from '../subscription/LimitGate';
+import LabelSheetModal from '@/components/products/LabelSheetModal';
 import { productService } from '@/services/productService';
 import { categoryService } from '@/services/categoryService';
 import { pdfService } from '@/services/pdfService';
@@ -42,8 +45,12 @@ export default function Products() {
   const [openForm, setOpenForm] = useState(false);
   const [confirm, setConfirm] = useState(null);
 
-  // Barcode label state
-  const [labelsFor, setLabelsFor] = useState(null);
+  // Bulk selection
+  const [selected, setSelected] = useState(new Set());
+  const [labelsFor, setLabelsFor] = useState(null); // array of products
+
+  // Single-product labels
+  const [singleLabelsFor, setSingleLabelsFor] = useState(null);
   const [copies, setCopies] = useState('1');
   const [printing, setPrinting] = useState(false);
 
@@ -84,7 +91,6 @@ export default function Products() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const paged = filtered.slice((page - 1) * perPage, page * perPage);
 
-  // Plan limits
   const productLimit = limits?.products;
   const productUsage = usage?.products ?? items.length;
   const unlimited = productLimit === -1 || productLimit === undefined;
@@ -93,7 +99,48 @@ export default function Products() {
     : Math.min(100, Math.round((productUsage / productLimit) * 100));
   const nearLimit = !unlimited && usagePct >= 80 && productUsage < productLimit;
 
+  const toggleSelect = id => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allPagedSelected =
+    paged.length > 0 && paged.every(p => selected.has(p.id));
+
+  const toggleAllPaged = () => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allPagedSelected) {
+        paged.forEach(p => next.delete(p.id));
+      } else {
+        paged.forEach(p => next.add(p.id));
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelected(new Set());
+
   const columns = [
+    {
+      key: 'select',
+      label: '',
+      width: 40,
+      render: p => (
+        <input
+          type="checkbox"
+          checked={selected.has(p.id)}
+          onChange={() => toggleSelect(p.id)}
+          onClick={e => e.stopPropagation()}
+          aria-label={`Select ${p.name}`}
+          style={{ accentColor: 'var(--primary)', width: 16, height: 16 }}
+        />
+      ),
+    },
     {
       key: 'name',
       label: 'Product',
@@ -141,8 +188,9 @@ export default function Products() {
         <div className="row gap-4" style={{ justifyContent: 'flex-end' }}>
           <button
             className="icon-btn"
-            onClick={() => {
-              setLabelsFor(p);
+            onClick={e => {
+              e.stopPropagation();
+              setSingleLabelsFor(p);
               setCopies('1');
             }}
             aria-label="Print labels"
@@ -152,7 +200,8 @@ export default function Products() {
           </button>
           <button
             className="icon-btn"
-            onClick={() => {
+            onClick={e => {
+              e.stopPropagation();
               setEditing(p);
               setOpenForm(true);
             }}
@@ -162,7 +211,10 @@ export default function Products() {
           </button>
           <button
             className="icon-btn danger"
-            onClick={() => setConfirm(p)}
+            onClick={e => {
+              e.stopPropagation();
+              setConfirm(p);
+            }}
             aria-label="Delete"
           >
             <Trash2 size={15} />
@@ -189,23 +241,30 @@ export default function Products() {
     if (confirm) {
       await productService.remove(confirm.id);
       toast.success('Product deleted.');
+      setSelected(prev => {
+        const next = new Set(prev);
+        next.delete(confirm.id);
+        return next;
+      });
     }
     setConfirm(null);
     await load();
   };
 
-  const printLabels = async () => {
-    if (!labelsFor) return;
+  const printSingleLabels = async () => {
+    if (!singleLabelsFor) return;
     setPrinting(true);
     try {
+      const copiesCount = Math.max(1, Number(copies) || 1);
+      const expanded = [];
+      for (let i = 0; i < copiesCount; i++) expanded.push(singleLabelsFor);
       const blob = await barcodeService.generateLabelSheet({
         business,
-        products: [labelsFor],
-        copiesPerProduct: Math.max(1, Number(copies) || 1),
+        products: expanded,
       });
-      pdfService.downloadBlob(blob, `labels-${labelsFor.sku || 'product'}.pdf`);
+      pdfService.downloadBlob(blob, `labels-${singleLabelsFor.sku || 'product'}.pdf`);
       toast.success('Labels PDF downloaded.');
-      setLabelsFor(null);
+      setSingleLabelsFor(null);
     } catch (err) {
       toast.error(err.message || 'Could not generate labels.');
     } finally {
@@ -213,10 +272,19 @@ export default function Products() {
     }
   };
 
-  const labelPageCount = Math.max(
+  const singleLabelPages = Math.max(
     1,
     Math.ceil((Number(copies) || 1) / 24)
   );
+
+  const bulkPrintLabels = () => {
+    const list = items.filter(p => selected.has(p.id));
+    if (list.length === 0) {
+      toast.warning('Select at least one product.');
+      return;
+    }
+    setLabelsFor(list);
+  };
 
   return (
     <div className="stack gap-24">
@@ -336,11 +404,39 @@ export default function Products() {
                 <option value="low">Low stock</option>
                 <option value="out">Out of stock</option>
               </select>
+              <button
+                type="button"
+                className="select-all-btn"
+                onClick={toggleAllPaged}
+              >
+                {allPagedSelected ? 'Deselect page' : 'Select page'}
+              </button>
               <button className="icon-btn" aria-label="Filters">
                 <Filter size={15} />
               </button>
             </div>
           </div>
+
+          {selected.size > 0 && (
+            <div className="bulk-bar">
+              <div className="bulk-bar-info">
+                <strong>{selected.size}</strong> selected
+              </div>
+              <div className="bulk-bar-actions">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={bulkPrintLabels}
+                  leftIcon={<QrCode size={13} />}
+                >
+                  Print labels
+                </Button>
+                <Button size="sm" variant="ghost" onClick={clearSelection}>
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 16 }}>
             <Table
@@ -404,25 +500,25 @@ export default function Products() {
         />
       </Modal>
 
-      {/* Barcode labels modal */}
+      {/* Single-product labels modal */}
       <Modal
-        open={!!labelsFor}
-        onClose={() => setLabelsFor(null)}
+        open={!!singleLabelsFor}
+        onClose={() => setSingleLabelsFor(null)}
         title="Print barcode labels"
-        subtitle={labelsFor ? labelsFor.name : ''}
+        subtitle={singleLabelsFor ? singleLabelsFor.name : ''}
         size="sm"
         footer={
           <>
-            <Button variant="outline" onClick={() => setLabelsFor(null)}>
+            <Button variant="outline" onClick={() => setSingleLabelsFor(null)}>
               Cancel
             </Button>
-            <Button onClick={printLabels} loading={printing}>
+            <Button onClick={printSingleLabels} loading={printing}>
               Download labels PDF
             </Button>
           </>
         }
       >
-        {labelsFor && (
+        {singleLabelsFor && (
           <div className="stack gap-16">
             <p
               style={{
@@ -444,10 +540,10 @@ export default function Products() {
               autoFocus
             />
             <div className="muted" style={{ fontSize: 12.5 }}>
-              {labelPageCount} page{labelPageCount === 1 ? '' : 's'} · 24 labels
+              {singleLabelPages} page{singleLabelPages === 1 ? '' : 's'} · 24 labels
               per page
             </div>
-            {!labelsFor.barcode && (
+            {!singleLabelsFor.barcode && (
               <div className="prod-labels-warn">
                 This product doesn't have a barcode. The label will use the SKU
                 instead.
@@ -456,6 +552,16 @@ export default function Products() {
           </div>
         )}
       </Modal>
+
+      {/* Bulk labels modal */}
+      <LabelSheetModal
+        open={!!labelsFor}
+        products={labelsFor || []}
+        onClose={() => {
+          setLabelsFor(null);
+          clearSelection();
+        }}
+      />
 
       <ConfirmDialog
         open={!!confirm}
@@ -497,6 +603,20 @@ export default function Products() {
           border-color: var(--primary);
           box-shadow: 0 0 0 4px var(--primary-50);
         }
+        .select-all-btn {
+          padding: 8px 12px;
+          border-radius: 10px;
+          border: 1px solid var(--border-strong);
+          background: #fff;
+          font-size: 12.5px;
+          font-weight: 600;
+          color: var(--text-muted);
+          cursor: pointer;
+        }
+        .select-all-btn:hover {
+          border-color: var(--primary);
+          color: var(--primary);
+        }
         .empty-cta {
           display: flex; flex-direction: column; align-items: center; text-align: center;
           padding: 40px 24px; gap: 10px;
@@ -536,6 +656,23 @@ export default function Products() {
           background: #fffbeb; border: 1px solid #fde68a;
           font-size: 12.5px; color: #92400e; line-height: 1.55;
         }
+
+        .bulk-bar {
+          display: flex; justify-content: space-between; align-items: center;
+          gap: 12px;
+          padding: 10px 14px;
+          margin-top: 12px;
+          background: var(--primary-50);
+          border: 1px solid var(--primary-100);
+          border-radius: 12px;
+          flex-wrap: wrap;
+        }
+        .bulk-bar-info {
+          font-size: 13px;
+          color: var(--primary-700);
+        }
+        .bulk-bar-info strong { font-weight: 800; }
+        .bulk-bar-actions { display: flex; gap: 8px; }
       `}</style>
     </div>
   );
