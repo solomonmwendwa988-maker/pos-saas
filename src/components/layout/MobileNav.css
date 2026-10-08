@@ -1,0 +1,60 @@
+.mnav {
+  display: none;
+}
+@media (max-width: 900px) {
+  .mnav {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    align-items: stretch;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    background: #ffffff;
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.05);
+  }
+}
+
+.mnav-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 10px 4px 12px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-family: inherit;
+  transition: color var(--dur), background var(--dur);
+}
+.mnav-tab:active {
+  background: var(--bg-soft);
+}
+.mnav-tab.on {
+  color: var(--primary);
+}
+.mnav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.mnav-tab.on .mnav-icon::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--primary);
+}
+.mnav-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}

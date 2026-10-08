@@ -1,0 +1,51 @@
+/* Dashboard.css */
+.dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.dash-greet { font-size: 13.5px; margin: 0; }
+.dash-title { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; margin: 2px 0 4px; }
+.dash-sub { font-size: 13px; margin: 0; }
+
+.trial-banner {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+  border: 1px solid #fed7aa; border-radius: var(--r-lg);
+  padding: 16px 20px;
+}
+.trial-dot {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--warning);
+  box-shadow: 0 0 0 4px rgba(217,119,6,0.2);
+}
+.trial-title { font-size: 14px; font-weight: 700; color: #9a3412; }
+.trial-sub { font-size: 12px; color: #c2410c; margin-top: 2px; }
+
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .kpi-grid { grid-template-columns: 1fr; } }
+
+.dash-charts { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+@media (max-width: 980px) { .dash-charts { grid-template-columns: 1fr; } }
+
+.dash-bottom { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 1180px) { .dash-bottom { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 760px) { .dash-bottom { grid-template-columns: 1fr; } }
+
+.lowstock { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.lowstock-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px dashed var(--border);
+}
+.lowstock-row:last-child { border-bottom: 0; }
+.lowstock-name { font-size: 13.5px; font-weight: 600; }
+.lowstock-sku { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+
+.top-products { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.top-row {
+  display: grid; grid-template-columns: 24px 1fr auto auto; gap: 10px; align-items: center;
+  padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px;
+}
+.top-row:last-child { border-bottom: 0; }
+.top-rank {
+  width: 22px; height: 22px; border-radius: 8px; background: var(--primary-50);
+  color: var(--primary); font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}
+.top-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

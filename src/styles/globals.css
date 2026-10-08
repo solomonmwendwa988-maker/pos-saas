@@ -1,0 +1,384 @@
+:root {
+  --primary: #6d5efc;
+  --primary-600: #5b4bf0;
+  --primary-700: #4a3ad9;
+  --primary-50: #f1efff;
+  --primary-100: #e4e1ff;
+  --accent: #22d3ee;
+  --accent-soft: #a5f3fc;
+
+  --bg: #f6f7fb;
+  --bg-soft: #eef0f7;
+  --surface: #ffffff;
+  --sidebar: #0f1226;
+  --sidebar-hover: #1a1d38;
+  --sidebar-active: #23274a;
+
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+
+  --border: #e6e8f0;
+  --border-strong: #d3d7e3;
+  --success: #16a34a;
+  --success-bg: #dcfce7;
+  --warning: #d97706;
+  --warning-bg: #fef3c7;
+  --danger: #dc2626;
+  --danger-bg: #fee2e2;
+  --info: #2563eb;
+  --info-bg: #dbeafe;
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-full: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 6px 20px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.12);
+  --shadow-primary: 0 10px 30px rgba(109, 94, 252, 0.32);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
+
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dur-fast: 140ms;
+  --dur: 220ms;
+  --dur-slow: 420ms;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--text);
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+input, select, textarea { font-family: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.stack { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; }
+.between { justify-content: space-between; }
+.center { justify-content: center; align-items: center; }
+.gap-4 { gap: 4px; }
+.gap-8 { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-24 { gap: 24px; }
+.gap-32 { gap: 32px; }
+.muted { color: var(--text-muted); }
+.faint { color: var(--text-faint); }
+.bold { font-weight: 600; }
+.mono { font-variant-numeric: tabular-nums; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; border: 3px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.fade-up { animation: fadeUp var(--dur-slow) var(--ease) both; }
+.fade-in { animation: fadeIn var(--dur-slow) var(--ease) both; }
+
+.skeleton {
+  background: linear-gradient(90deg, #eef0f7 25%, #e3e6f0 37%, #eef0f7 63%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s linear infinite;
+  border-radius: var(--r-sm);
+}
+
+/* ---------- Print styles: only receipts print cleanly ---------- */
+@media print {
+  body {
+    background: #fff !important;
+  }
+
+  /* Hide the entire app shell by default */
+  .shell,
+  .pnav,
+  .footer,
+  .topbar,
+  .side,
+  .modal-scrim > .modal > *:not(.print-area),
+  .toast-stack {
+    display: none !important;
+  }
+
+  /* Only elements marked .print-area render */
+  .print-area,
+  .print-area * {
+    display: revert !important;
+    visibility: visible !important;
+    color: #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .print-area {
+    position: absolute; left: 0; top: 0; width: 100%;
+    padding: 20px; font-family: 'Courier New', monospace;
+  }
+
+  .print-hide { display: none !important; }
+
+  @page { margin: 12mm; size: auto; }
+}
+
+.skip-link {
+  position: absolute; left: -9999px; top: 8px; z-index: 999;
+  background: var(--primary); color: #fff;
+  padding: 10px 16px; border-radius: 10px;
+  font-weight: 600; font-size: 13.5px;
+}
+.skip-link:focus { left: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   Mobile-first responsive overrides
+   Applied below 640px unless noted.
+   ============================================================ */
+
+/* Prevent iOS zooming when focusing an input */
+@media (max-width: 900px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Bigger tap targets on touch devices */
+@media (hover: none) and (pointer: coarse) {
+  button,
+  a,
+  [role='button'],
+  .side-link,
+  .pos-cat,
+  .mnav-tab {
+    min-height: 40px;
+  }
+  .icon-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+/* ---------- Tables → horizontal scroll on small screens ---------- */
+@media (max-width: 760px) {
+  .table-wrap {
+    margin: 0 -12px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+  .table {
+    font-size: 13px;
+  }
+  .table thead th,
+  .table tbody td {
+    padding: 10px 12px;
+    white-space: nowrap;
+  }
+}
+
+/* ---------- Page header stacks ---------- */
+@media (max-width: 640px) {
+  .page-head {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+  .page-head .row {
+    flex-wrap: wrap;
+  }
+  .page-title {
+    font-size: 20px !important;
+  }
+}
+
+/* ---------- Modals become bottom sheets on mobile ---------- */
+@media (max-width: 640px) {
+  .modal-scrim {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .modal {
+    max-width: 100% !important;
+    width: 100% !important;
+    border-radius: 20px 20px 0 0 !important;
+    max-height: 92vh !important;
+  }
+  .modal-head {
+    padding: 18px 18px 12px !important;
+  }
+  .modal-body {
+    padding: 16px 18px !important;
+  }
+  .modal-foot {
+    padding: 12px 18px calc(16px + env(safe-area-inset-bottom)) !important;
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .modal-foot .btn {
+    width: 100%;
+  }
+}
+
+/* ---------- Command palette full-screen on mobile ---------- */
+@media (max-width: 640px) {
+  .cp-scrim {
+    padding: 0 !important;
+    align-items: stretch !important;
+  }
+  .cp {
+    max-width: 100% !important;
+    width: 100% !important;
+    border-radius: 0 !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+  }
+}
+
+/* ---------- POS layout on mobile ---------- */
+@media (max-width: 1024px) {
+  .pos {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+  }
+  .pos-cats {
+    position: sticky;
+    top: 60px;
+    z-index: 30;
+    flex-direction: row !important;
+    overflow-x: auto;
+    padding: 10px !important;
+    border-radius: 12px !important;
+  }
+  .pos-cats-list {
+    flex-direction: row !important;
+    overflow-x: auto;
+  }
+  .pos-cat {
+    white-space: nowrap;
+    padding: 8px 12px !important;
+  }
+  .pos-main {
+    min-height: 50vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .pos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .pos-card {
+    padding: 10px !important;
+  }
+  .pos-name {
+    font-size: 12.5px !important;
+    min-height: 30px !important;
+  }
+  .pos-price { font-size: 13px !important; }
+
+  /* Sticky charge button at bottom of the cart on mobile */
+  .cart-foot {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    box-shadow: 0 -6px 20px rgba(15, 23, 42, 0.06);
+  }
+}
+
+/* ---------- Forms: label stacks ---------- */
+@media (max-width: 640px) {
+  .grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ---------- Sidebar becomes a full-width drawer ---------- */
+@media (max-width: 900px) {
+  .side {
+    width: 82vw !important;
+    max-width: 320px;
+    z-index: 200;
+  }
+  .side-scrim {
+    z-index: 199;
+  }
+}
+
+/* ---------- Make the Topbar more compact ---------- */
+@media (max-width: 640px) {
+  .topbar {
+    padding: 10px 12px !important;
+  }
+  .gs-input input {
+    padding: 9px 0 !important;
+  }
+  .topbar-user {
+    padding: 3px !important;
+  }
+  .topbar-user-info {
+    display: none;
+  }
+}

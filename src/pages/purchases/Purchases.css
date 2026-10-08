@@ -1,0 +1,49 @@
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.page-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.page-sub { font-size: 13px; margin: 4px 0 0; }
+
+.pu-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 1100px) { .pu-kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .pu-kpis { grid-template-columns: 1fr; } }
+
+.pu-toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.pu-select {
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  padding: 9px 12px; font-size: 13px; background: #fff;
+  color: var(--text); cursor: pointer; outline: none;
+}
+.pu-select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-50); }
+
+.pu-progress { display: flex; align-items: center; gap: 8px; min-width: 110px; }
+.pu-progress-bar {
+  flex: 1; height: 6px; border-radius: 999px; background: var(--bg-soft);
+  overflow: hidden;
+}
+.pu-progress-bar span {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #6d5efc, #22d3ee);
+  transition: width var(--dur-slow) var(--ease);
+}
+.pu-progress-text { font-size: 11.5px; color: var(--text-muted); font-weight: 700; }
+
+.pu-open {
+  width: 30px; height: 30px; border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); cursor: pointer;
+  transition: all var(--dur);
+}
+.pu-open:hover { color: var(--primary); border-color: var(--primary); background: var(--primary-50); }
+
+.pu-empty {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 40px 24px; gap: 10px;
+}
+.pu-empty-icon {
+  width: 64px; height: 64px; border-radius: 20px;
+  background: var(--primary-50); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 8px;
+}
+.pu-empty h3 { font-size: 18px; font-weight: 700; margin: 4px 0 0; }
+.pu-empty p { max-width: 420px; font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; }

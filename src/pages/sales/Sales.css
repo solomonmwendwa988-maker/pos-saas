@@ -1,0 +1,24 @@
+/* Sales.css */
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.page-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.page-sub { font-size: 13px; margin: 4px 0 0; }
+
+.sales-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 1100px) { .sales-kpis { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .sales-kpis { grid-template-columns: 1fr; } }
+
+.sales-toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.select {
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  padding: 9px 12px; font-size: 13px; background: #fff;
+  color: var(--text); cursor: pointer; outline: none;
+}
+.select:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-50); }
+
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-muted); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all var(--dur);
+}
+.icon-btn:hover { background: var(--bg-soft); color: var(--primary); border-color: var(--primary); }

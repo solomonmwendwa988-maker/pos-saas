@@ -1,0 +1,77 @@
+/* Settings.css */
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.page-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.page-sub { font-size: 13px; margin: 4px 0 0; }
+
+.settings-tabs {
+  display: flex; gap: 4px; padding: 4px;
+  background: #fff; border: 1px solid var(--border);
+  border-radius: var(--r-full); overflow-x: auto;
+  width: max-content; max-width: 100%;
+}
+.settings-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 16px; border-radius: var(--r-full);
+  font-size: 13.5px; font-weight: 600; color: var(--text-muted);
+  white-space: nowrap; transition: all var(--dur);
+}
+.settings-tab:hover { color: var(--text); }
+.settings-tab.on {
+  background: var(--primary); color: #fff;
+  box-shadow: 0 4px 14px rgba(109,94,252,0.3);
+}
+
+.settings-card {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 24px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.settings-card-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  gap: 16px;
+}
+.settings-card-title { font-size: 15px; font-weight: 700; }
+.settings-card-sub {
+  font-size: 12.5px; color: var(--text-muted); margin-top: 4px;
+  line-height: 1.55; max-width: 560px;
+}
+.settings-actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding-top: 16px; border-top: 1px solid var(--border);
+}
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 640px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.logo-upload {
+  display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+}
+.logo-preview {
+  width: 88px; height: 88px; border-radius: 18px;
+  background: var(--primary-50); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 32px; font-weight: 800; font-family: var(--font-display);
+  overflow: hidden; flex-shrink: 0;
+}
+.logo-preview img { width: 100%; height: 100%; object-fit: cover; }
+.logo-actions { display: flex; flex-direction: column; gap: 8px; }
+.logo-hint { font-size: 11.5px; color: var(--text-faint); }
+.file-input { display: none; }
+
+.ib-installed {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--success-bg);
+  color: #15803d;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ib-hint {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.55;
+  max-width: 520px;
+}

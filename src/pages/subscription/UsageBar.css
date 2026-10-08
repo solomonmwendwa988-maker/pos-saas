@@ -1,0 +1,37 @@
+.ub { display: flex; flex-direction: column; gap: 6px; }
+.ub-head {
+  display: flex; justify-content: space-between;
+  font-size: 12.5px; align-items: center;
+}
+.ub-label { font-weight: 600; color: var(--text-muted); }
+.ub-value { font-weight: 700; font-size: 12.5px; }
+
+.ub-track {
+  height: 8px; border-radius: 999px; background: var(--bg-soft);
+  overflow: hidden;
+}
+.ub-fill {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #6d5efc, #22d3ee);
+  transition: width var(--dur-slow) var(--ease);
+}
+.ub-fill.near { background: linear-gradient(90deg, #f59e0b, #f97316); }
+.ub-fill.full { background: linear-gradient(90deg, #dc2626, #b91c1c); }
+.ub-fill.unlimited { background: linear-gradient(90deg, #6d5efc, #a5a1ff); opacity: 0.55; }
+
+.ub-hint {
+  font-size: 11.5px; color: var(--warning); font-weight: 500;
+}
+.ub-upgrade {
+  align-self: flex-start;
+  background: var(--danger);
+  color: #fff;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--dur);
+}
+.ub-upgrade:hover { background: #b91c1c; }

@@ -1,0 +1,31 @@
+/* PublicNav.css */
+.pnav {
+  position: sticky; top: 0; z-index: 40;
+  backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.75);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--dur), background var(--dur);
+}
+.pnav-scrolled { border-bottom-color: var(--border); background: rgba(255,255,255,0.9); }
+.pnav-inner { display: flex; align-items: center; justify-content: space-between; height: 68px; gap: 24px; }
+.pnav-links { display: flex; gap: 4px; }
+.pnav-link {
+  padding: 8px 14px; border-radius: 10px; font-weight: 500;
+  font-size: 14px; color: var(--text-muted);
+  transition: color var(--dur), background var(--dur);
+}
+.pnav-link:hover { color: var(--text); background: var(--bg-soft); }
+.pnav-link.active { color: var(--primary); background: var(--primary-50); }
+.pnav-actions { display: flex; align-items: center; gap: 8px; }
+.pnav-burger { display: none; background: transparent; border: 0; padding: 8px; cursor: pointer; color: var(--text); }
+.pnav-mobile {
+  border-top: 1px solid var(--border);
+  padding: 12px 24px 24px;
+  display: flex; flex-direction: column; gap: 4px; background: #fff;
+}
+.pnav-mobile-link { padding: 12px; border-radius: 10px; font-weight: 500; color: var(--text-muted); }
+.pnav-mobile-link:hover, .pnav-mobile-link.active { background: var(--bg-soft); color: var(--text); }
+@media (max-width: 900px) {
+  .pnav-links, .pnav-actions { display: none; }
+  .pnav-burger { display: flex; }
+}

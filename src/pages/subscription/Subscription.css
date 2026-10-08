@@ -1,0 +1,400 @@
+/* ============================================================
+   Subscription page — layout & components
+   ============================================================ */
+
+/* ---------- Page header ---------- */
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.page-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.page-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--text);
+}
+.page-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* ---------- Billing toggle ---------- */
+.billing-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: #eef0f7;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.billing-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.billing-toggle button:hover {
+  color: var(--text);
+}
+.billing-toggle button.on {
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+.save-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: #dcfce7;
+  color: #15803d;
+  border-radius: 999px;
+}
+
+/* ============================================================
+   Status hero card
+   ============================================================ */
+
+.sub-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 24px;
+  border-radius: 18px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  position: relative;
+  overflow: hidden;
+}
+.sub-status::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--border);
+}
+.sub-status-trial::before { background: #f59e0b; }
+.sub-status-active::before { background: #22c55e; }
+.sub-status-cancelled::before { background: #ef4444; }
+.sub-status-pending::before { background: #6366f1; }
+
+.sub-status-trial {
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 55%);
+}
+.sub-status-active {
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 55%);
+}
+.sub-status-cancelled {
+  background: linear-gradient(180deg, #fef2f2 0%, #ffffff 55%);
+}
+.sub-status-pending {
+  background: linear-gradient(180deg, #eef2ff 0%, #ffffff 55%);
+}
+
+/* Main content (icon + body) */
+.sub-status-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  flex: 1 1 500px;
+  min-width: 0;
+}
+
+.sub-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #7c6cff 0%, #22d3ee 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(109, 94, 252, 0.28);
+}
+
+.sub-status-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sub-status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sub-status-name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.sub-status-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: #ffedd5;
+  color: #c2410c;
+  border-radius: 999px;
+}
+
+.sub-status-tagline {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.sub-status-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.sub-status-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sub-status-meta strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* Pending change banner */
+.sub-pending {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+}
+.sub-pending button {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Actions */
+.sub-status-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-width: 180px;
+}
+@media (max-width: 720px) {
+  .sub-status-actions { min-width: 0; width: 100%; }
+  .sub-status-actions a,
+  .sub-status-actions button { width: 100%; }
+}
+
+/* ============================================================
+   Usage card
+   ============================================================ */
+
+.sub-usage-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px 32px;
+}
+@media (max-width: 720px) {
+  .sub-usage-grid { grid-template-columns: 1fr; gap: 20px; }
+}
+
+/* ============================================================
+   Plans grid
+   ============================================================ */
+
+.sub-plans {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  align-items: stretch;
+}
+@media (max-width: 960px) {
+  .sub-plans { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   Payment card
+   ============================================================ */
+
+.sub-pay {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.sub-pay-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: 12px;
+  background: #f1efff;
+  color: var(--primary);
+}
+.sub-pay-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  background: #f6f7fb;
+  border-radius: 10px;
+}
+
+/* ============================================================
+   Invoice action button
+   ============================================================ */
+
+.sub-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+.sub-icon-btn:hover {
+  background: #f6f7fb;
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+/* ============================================================
+   Sections (used in the page body)
+   ============================================================ */
+
+.sub-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.sub-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.sub-section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.sub-section-sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 480px) {
+  .sub-status { padding: 18px; }
+  .sub-status-icon { width: 44px; height: 44px; flex-basis: 44px; }
+  .sub-status-name { font-size: 18px; }
+}
+
+/* ---------- Status chip tones ---------- */
+.sub-status-chip-trial    { background: #ffedd5; color: #c2410c; }
+.sub-status-chip-active   { background: #dcfce7; color: #15803d; }
+.sub-status-chip-danger   { background: #fee2e2; color: #b91c1c; }
+.sub-status-chip-pending  { background: #e0e7ff; color: #4338ca; }
+
+/* ---------- Quiet link for paid users ---------- */
+.sub-status-quiet-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.sub-status-quiet-link:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--primary-50);
+}
+
+.sub-status-quiet-note {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-style: italic;
+}

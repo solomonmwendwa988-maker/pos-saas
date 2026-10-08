@@ -1,0 +1,11 @@
+/* OTPInput.css */
+.otp { display: flex; gap: 10px; justify-content: space-between; }
+.otp-cell {
+  width: 100%; height: 56px; text-align: center;
+  font-size: 22px; font-weight: 700; font-family: var(--font-display);
+  border: 1px solid var(--border-strong); border-radius: 14px;
+  background: #fff; color: var(--text); outline: none;
+  transition: border-color var(--dur), box-shadow var(--dur);
+}
+.otp-cell:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-50); }
+.otp-cell:disabled { background: var(--bg-soft); color: var(--text-faint); }

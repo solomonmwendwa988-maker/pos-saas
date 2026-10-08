@@ -1,0 +1,30 @@
+/* Modal.css */
+.modal-scrim {
+  position: fixed; inset: 0; background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(2px); z-index: 100;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.modal {
+  background: #fff; border-radius: var(--r-xl);
+  box-shadow: 0 30px 80px rgba(15,23,42,0.35);
+  width: 100%; max-height: 90vh; display: flex; flex-direction: column;
+}
+.modal-sm { max-width: 420px; }
+.modal-md { max-width: 560px; }
+.modal-lg { max-width: 780px; }
+.modal-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 22px 24px 14px; border-bottom: 1px solid var(--border); gap: 12px;
+}
+.modal-title { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; }
+.modal-sub { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; }
+.modal-close {
+  background: transparent; border: 0; cursor: pointer; color: var(--text-muted);
+  padding: 6px; border-radius: 8px;
+}
+.modal-close:hover { background: var(--bg-soft); color: var(--text); }
+.modal-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 16px 24px; border-top: 1px solid var(--border);
+}

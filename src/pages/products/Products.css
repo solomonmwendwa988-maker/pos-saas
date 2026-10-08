@@ -1,0 +1,22 @@
+/* Products.css */
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.page-title { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.page-sub { font-size: 13px; margin: 4px 0 0; }
+
+.prod-toolbar { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.prod-filters { display: flex; gap: 10px; align-items: center; }
+
+.prod-cell { display: flex; gap: 12px; align-items: center; }
+.prod-thumb {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: var(--primary-50); color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-family: var(--font-display); flex-shrink: 0;
+}
+.prod-name { font-weight: 600; font-size: 13.5px; }
+.prod-sku { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+
+.pager {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 16px; flex-wrap: wrap; gap: 12px;
+}
