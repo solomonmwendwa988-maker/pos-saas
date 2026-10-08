@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AtSign, Lock, Mail, RefreshCcw } from 'lucide-react';
+import { AtSign, Lock, Mail } from 'lucide-react';
 import AuthLayout from '@/components/layout/AuthLayout';
 import Input from '@/components/common/Input';
 import Button from '@/components/common/Button';
@@ -56,7 +56,7 @@ export default function Login() {
     try {
       const session = await authService.completeLoginWithOtp(otp, email);
       setSession(session);
-      nav('/dashboard', { replace: true });
+      nav('/loading', { replace: true, state: { next: '/dashboard' } });
     } catch (err) {
       setError(err.message || 'Verification failed.');
     } finally {
@@ -144,7 +144,9 @@ export default function Login() {
         <form onSubmit={submitOtp} className="stack gap-16" noValidate>
           <div className="otp-hint">
             <Mail size={14} />
-            <span>Sent to <strong>{email}</strong></span>
+            <span>
+              Sent to <strong>{email}</strong>
+            </span>
           </div>
           <OTPInput value={otp} onChange={setOtp} />
           {error && <div className="form-error">{error}</div>}
@@ -160,7 +162,11 @@ export default function Login() {
           <button
             type="button"
             className="linklike"
-            onClick={() => { setStep('credentials'); setOtp(''); setError(''); }}
+            onClick={() => {
+              setStep('credentials');
+              setOtp('');
+              setError('');
+            }}
           >
             Use a different account
           </button>

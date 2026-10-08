@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  AtSign, Building2, Lock, Mail, MapPin, Phone, RefreshCcw, User as UserIcon,
+  AtSign, Building2, Lock, Mail, MapPin, Phone, User as UserIcon,
 } from 'lucide-react';
 import AuthLayout from '@/components/layout/AuthLayout';
 import Input from '@/components/common/Input';
@@ -63,21 +63,38 @@ export default function Signup() {
     if (step === 2) return strength === 5 && passwordsMatch;
     return otp.length === 6;
   }, [
-    step, fullName, email, phone,
-    businessName, businessType, businessLocation,
-    strength, passwordsMatch, otp,
+    step,
+    fullName,
+    email,
+    phone,
+    businessName,
+    businessType,
+    businessLocation,
+    strength,
+    passwordsMatch,
+    otp,
   ]);
 
-  const next = () => { setError(''); setStep(s => Math.min(3, s + 1)); };
-  const back = () => { setError(''); setStep(s => Math.max(0, s - 1)); };
+  const next = () => {
+    setError('');
+    setStep(s => Math.min(3, s + 1));
+  };
+  const back = () => {
+    setError('');
+    setStep(s => Math.max(0, s - 1));
+  };
 
   const submitSignup = async () => {
     setLoading(true);
     setError('');
     try {
       await authService.signup({
-        fullName, email, phone,
-        businessName, businessType, businessLocation,
+        fullName,
+        email,
+        phone,
+        businessName,
+        businessType,
+        businessLocation,
         password,
       });
       next();
@@ -96,7 +113,7 @@ export default function Signup() {
     try {
       const session = await authService.verifyOtp(otp);
       setSession(session);
-      nav('/onboarding', { replace: true });
+      nav('/loading', { replace: true, state: { next: '/onboarding' } });
     } catch (e) {
       setError(e.message || 'Verification failed.');
     } finally {
@@ -123,7 +140,10 @@ export default function Signup() {
     >
       <ol className="signup-steps">
         {STEPS.map((label, i) => (
-          <li key={label} className={i < step ? 'done' : i === step ? 'active' : ''}>
+          <li
+            key={label}
+            className={i < step ? 'done' : i === step ? 'active' : ''}
+          >
             <span className="signup-step-dot">{i + 1}</span>
             <span className="signup-step-label">{label}</span>
           </li>
@@ -133,19 +153,23 @@ export default function Signup() {
       {step === 0 && (
         <div className="stack gap-16 fade-up">
           <Input
-            label="Full name" value={fullName}
+            label="Full name"
+            value={fullName}
             onChange={e => setFullName(e.target.value)}
             placeholder="e.g. Wanjiku Kamau"
             leftIcon={<UserIcon size={16} />}
           />
           <Input
-            label="Email address" type="email" value={email}
+            label="Email address"
+            type="email"
+            value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="owner@duka.co.ke"
             leftIcon={<AtSign size={16} />}
           />
           <Input
-            label="Phone number" value={phone}
+            label="Phone number"
+            value={phone}
             onChange={e => setPhone(e.target.value)}
             placeholder="0712 345 678"
             leftIcon={<Phone size={16} />}
@@ -157,15 +181,19 @@ export default function Signup() {
       {step === 1 && (
         <div className="stack gap-16 fade-up">
           <Input
-            label="Business name" value={businessName}
+            label="Business name"
+            value={businessName}
             onChange={e => setBusinessName(e.target.value)}
             placeholder="e.g. Kamau Mini Market"
             leftIcon={<Building2 size={16} />}
           />
           <div className="field">
-            <label className="field-label">Business type</label>
+            <label className="field-label" htmlFor="business-type">
+              Business type
+            </label>
             <div className="field-control">
               <select
+                id="business-type"
                 className="field-input"
                 value={businessType}
                 onChange={e => setBusinessType(e.target.value)}
@@ -181,7 +209,8 @@ export default function Signup() {
             </div>
           </div>
           <Input
-            label="Business location" value={businessLocation}
+            label="Business location"
+            value={businessLocation}
             onChange={e => setBusinessLocation(e.target.value)}
             placeholder="e.g. Nakuru Town"
             leftIcon={<MapPin size={16} />}
@@ -192,14 +221,18 @@ export default function Signup() {
       {step === 2 && (
         <div className="stack gap-16 fade-up">
           <Input
-            label="Password" password value={password}
+            label="Password"
+            password
+            value={password}
             onChange={e => setPassword(e.target.value)}
             placeholder="Create a strong password"
             leftIcon={<Lock size={16} />}
           />
           <PasswordStrength value={password} />
           <Input
-            label="Confirm password" password value={confirm}
+            label="Confirm password"
+            password
+            value={confirm}
             onChange={e => setConfirm(e.target.value)}
             placeholder="Re-enter your password"
             leftIcon={<Lock size={16} />}
@@ -212,7 +245,10 @@ export default function Signup() {
         <div className="stack gap-16 fade-up">
           <div className="otp-hint">
             <Mail size={14} />
-            <span>Code sent to <strong>{email}</strong>. Check your inbox and spam folder.</span>
+            <span>
+              Code sent to <strong>{email}</strong>. Check your inbox and spam
+              folder.
+            </span>
           </div>
           <OTPInput value={otp} onChange={setOtp} />
           <div className="row gap-8" style={{ justifyContent: 'flex-end' }}>
@@ -228,15 +264,30 @@ export default function Signup() {
         </div>
       )}
 
-      {error && <div className="form-error" style={{ marginTop: 14 }}>{error}</div>}
+      {error && (
+        <div className="form-error" style={{ marginTop: 14 }}>
+          {error}
+        </div>
+      )}
 
       <div className="row gap-12" style={{ marginTop: 22 }}>
-        {step > 0 && step < 3 && <Button variant="outline" onClick={back}>Back</Button>}
+        {step > 0 && step < 3 && (
+          <Button variant="outline" onClick={back}>
+            Back
+          </Button>
+        )}
         {step < 2 && (
-          <Button full onClick={next} disabled={!stepValid}>Continue</Button>
+          <Button full onClick={next} disabled={!stepValid}>
+            Continue
+          </Button>
         )}
         {step === 2 && (
-          <Button full onClick={submitSignup} loading={loading} disabled={!stepValid}>
+          <Button
+            full
+            onClick={submitSignup}
+            loading={loading}
+            disabled={!stepValid}
+          >
             Create account
           </Button>
         )}

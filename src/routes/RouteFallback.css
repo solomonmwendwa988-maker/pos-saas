@@ -1,0 +1,80 @@
+.rf {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  background: var(--bg);
+  animation: rfFadeIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.rf-mark {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #7c6cff, #22d3ee);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16px 44px rgba(109, 94, 252, 0.35);
+  animation: rfPulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.rf-mark svg {
+  width: 32px;
+  height: 32px;
+  display: block;
+}
+
+.rf-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  animation: rfPulseText 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes rfPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 16px 44px rgba(109, 94, 252, 0.35),
+      0 0 0 0 rgba(124, 108, 255, 0.4);
+  }
+  50% {
+    transform: scale(0.94);
+    box-shadow:
+      0 12px 30px rgba(109, 94, 252, 0.25),
+      0 0 0 22px rgba(124, 108, 255, 0);
+  }
+}
+
+@keyframes rfPulseText {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes rfFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rf-mark,
+  .rf-label {
+    animation: none !important;
+  }
+}

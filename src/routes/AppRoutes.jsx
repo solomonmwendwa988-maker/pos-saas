@@ -18,6 +18,7 @@ const Signup = lazy(() => import('@/pages/auth/Signup'));
 const ForgotPassword = lazy(() => import('@/pages/auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('@/pages/auth/ResetPassword'));
 
+const Loading = lazy(() => import('@/pages/loading/Loading'));
 const Onboarding = lazy(() => import('@/pages/onboarding/Onboarding'));
 
 const Dashboard = lazy(() => import('@/pages/dashboard/Dashboard'));
@@ -64,12 +65,14 @@ export default function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
-        {/* Reset link emails point here with ?token=... */}
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-otp" element={<Navigate to="/login" replace />} />
 
         {/* ---------- Authenticated ---------- */}
         <Route element={<ProtectedRoute />}>
+          {/* Full-screen loading after login/signup */}
+          <Route path="/loading" element={<Loading />} />
+
           {/* Onboarding lives outside the app shell */}
           <Route path="/onboarding" element={<Onboarding />} />
 
