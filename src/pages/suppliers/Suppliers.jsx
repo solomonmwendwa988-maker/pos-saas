@@ -15,6 +15,7 @@ import { formatKSh } from '@/utils/format';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useToast } from '@/context/ToastContext';
 import './Suppliers.css';
+import './SupplierDetail.css';
 
 export default function Suppliers() {
   const toast = useToast();

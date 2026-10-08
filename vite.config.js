@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
-import path from 'node:path';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig(({ mode }) => ({
   plugins: [
@@ -100,7 +100,9 @@ export default defineConfig(({ mode }) => ({
     }),
   ],
   resolve: {
-    alias: { '@': path.resolve(import.meta.dirname, './src') },
+    alias: {
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
   },
   server: { port: 5173, open: true },
   build: {
