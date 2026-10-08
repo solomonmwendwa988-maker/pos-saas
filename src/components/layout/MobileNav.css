@@ -1,20 +1,25 @@
 .mnav {
   display: none;
 }
+
 @media (max-width: 900px) {
   .mnav {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     align-items: stretch;
+
+    /* True viewport pinning — no ancestor transforms on the shell,
+       so `fixed` resolves to the visual viewport, not a container. */
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
+
     z-index: 60;
     background: #ffffff;
     border-top: 1px solid var(--border);
-    padding-bottom: env(safe-area-inset-bottom);
-    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.05);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.06);
   }
 }
 
@@ -30,7 +35,9 @@
   cursor: pointer;
   color: var(--text-muted);
   font-family: inherit;
+  font-size: inherit;
   transition: color var(--dur), background var(--dur);
+  -webkit-tap-highlight-color: transparent;
 }
 .mnav-tab:active {
   background: var(--bg-soft);
@@ -38,6 +45,7 @@
 .mnav-tab.on {
   color: var(--primary);
 }
+
 .mnav-icon {
   display: inline-flex;
   align-items: center;
@@ -53,6 +61,7 @@
   border-radius: 999px;
   background: var(--primary);
 }
+
 .mnav-label {
   font-size: 10.5px;
   font-weight: 600;

@@ -1,4 +1,4 @@
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   BarChart3, LayoutDashboard, Menu, Package, Receipt, ShoppingCart,
 } from 'lucide-react';
@@ -14,7 +14,6 @@ const TABS = [
 
 export default function MobileNav({ onOpenMenu }) {
   const { pathname } = useLocation();
-  const nav = useNavigate();
 
   return (
     <nav className="mnav" aria-label="Primary mobile navigation">
@@ -26,7 +25,9 @@ export default function MobileNav({ onOpenMenu }) {
             to={to}
             className={`mnav-tab ${active ? 'on' : ''}`}
           >
-            <span className="mnav-icon"><Icon size={20} /></span>
+            <span className="mnav-icon">
+              <Icon size={20} />
+            </span>
             <span className="mnav-label">{label}</span>
           </NavLink>
         );
@@ -37,7 +38,9 @@ export default function MobileNav({ onOpenMenu }) {
         onClick={onOpenMenu}
         aria-label="More navigation"
       >
-        <span className="mnav-icon"><Menu size={20} /></span>
+        <span className="mnav-icon">
+          <Menu size={20} />
+        </span>
         <span className="mnav-label">More</span>
       </button>
     </nav>

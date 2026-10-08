@@ -7,6 +7,7 @@ import CommandPalette from './CommandPalette';
 import TrialBanner from '../../pages/subscription/TrialBanner';
 import OfflineBanner from '@/components/common/OfflineBanner';
 import InstallPrompt from '@/components/common/InstallPrompt';
+import PushPermissionPrompt from '@/components/common/PushPermissionPrompt';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { useRouteFocus } from '@/hooks/useRouteFocus';
 import './AppShell.css';
@@ -19,7 +20,9 @@ export default function AppShell() {
 
   return (
     <div className={`shell ${collapsed ? 'shell-collapsed' : ''}`}>
-      <a href="#main-content" className="skip-link">Skip to main content</a>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
 
       <Sidebar
         collapsed={collapsed}
@@ -39,12 +42,15 @@ export default function AppShell() {
             <Outlet />
           </ErrorBoundary>
         </div>
-
-        <MobileNav onOpenMenu={() => setMobileOpen(true)} />
       </div>
+
+      {/* Rendered at the shell level so fixed positioning is
+          anchored to the viewport, not a scrolled container. */}
+      <MobileNav onOpenMenu={() => setMobileOpen(true)} />
 
       <CommandPalette />
       <InstallPrompt />
+      <PushPermissionPrompt />
     </div>
   );
 }

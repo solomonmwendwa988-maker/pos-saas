@@ -3,14 +3,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
   background: #fff;
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 20;
-  padding-top: calc(14px + env(safe-area-inset-top));
 }
-
 .topbar-left {
   display: flex;
   align-items: center;
@@ -18,7 +17,6 @@
   flex: 1;
   min-width: 0;
 }
-
 .topbar-burger {
   display: none;
   background: transparent;
@@ -27,14 +25,12 @@
   cursor: pointer;
   color: var(--text);
 }
-
 .topbar-right {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
 }
-
 .topbar-icon {
   position: relative;
   display: flex;
@@ -46,7 +42,6 @@
   background: var(--bg-soft);
   color: var(--text);
 }
-
 .topbar-badge {
   position: absolute;
   top: 4px;
@@ -64,7 +59,6 @@
   justify-content: center;
   border: 2px solid #fff;
 }
-
 .topbar-user {
   position: relative;
   display: flex;
@@ -78,7 +72,6 @@
 .topbar-user:hover {
   background: var(--bg-soft);
 }
-
 .topbar-avatar {
   width: 34px;
   height: 34px;
@@ -99,7 +92,6 @@
   height: 100%;
   object-fit: cover;
 }
-
 .topbar-user-info {
   display: flex;
   flex-direction: column;
@@ -113,7 +105,6 @@
   font-size: 11px;
   color: var(--text-muted);
 }
-
 .topbar-menu {
   position: absolute;
   top: calc(100% + 8px);
@@ -152,17 +143,27 @@
 }
 
 @media (max-width: 1024px) {
-  .topbar-burger { display: flex; }
+  .topbar-burger {
+    display: flex;
+  }
 }
 
 @media (max-width: 640px) {
   .topbar {
     padding: 10px 12px;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
   }
   .topbar-user-info {
     display: none;
   }
-  .topbar-chevron {
+  .topbar-user .lucide-chevron-down {
     display: none;
+  }
+  .topbar-menu {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 60px);
+    right: 12px;
+    left: 12px;
+    min-width: 0;
   }
 }

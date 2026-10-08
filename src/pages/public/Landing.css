@@ -5,8 +5,6 @@
 
 /* ============================================================
    HERO ANIMATIONS
-   The landing wraps itself with `.is-mounted` when the splash
-   begins to fade. These classes stagger the hero children in.
    ============================================================ */
 .hero-anim {
   opacity: 0;
@@ -14,7 +12,6 @@
   transition:
     opacity 900ms cubic-bezier(0.22, 1, 0.36, 1),
     transform 1100ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
 }
 .landing.is-mounted .hero-anim {
   opacity: 1;
@@ -108,6 +105,12 @@
   font-weight: 600;
   margin-bottom: 20px;
   border: 1px solid var(--primary-100);
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.4;
+}
+.hero-pill svg {
+  flex-shrink: 0;
 }
 .hero-title {
   font-size: clamp(34px, 4.6vw, 56px);
@@ -140,6 +143,9 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+.trust-item svg {
+  flex-shrink: 0;
 }
 .hero-visual {
   position: relative;
@@ -354,8 +360,6 @@
   transform: translateY(-4px);
   box-shadow: var(--shadow-md);
 }
-/* Prominent "hot" styling without scale — avoids transform conflict
-   with the Reveal transition. */
 .price-hot {
   border-color: var(--primary);
   border-width: 2px;
@@ -506,7 +510,6 @@
   }
 }
 
-/* Mobile */
 @media (max-width: 780px) {
   .steps-grid {
     grid-template-columns: 1fr;
@@ -517,136 +520,170 @@
   }
 }
 
+/* ============================================================
+   MOBILE HERO — the main event
+   ============================================================ */
 @media (max-width: 640px) {
   .hero {
-    padding: 36px 0 56px;
+    padding: 24px 0 44px;
   }
+  .hero-inner {
+    gap: 28px;
+  }
+
+  /* Pill wraps nicely on small screens */
   .hero-pill {
-    font-size: 11.5px;
-    padding: 5px 12px;
+    font-size: 11px;
+    padding: 6px 12px;
+    margin-bottom: 16px;
+    letter-spacing: 0.005em;
+    line-height: 1.35;
   }
+
+  /* Headline hugs tighter */
   .hero-title {
-    font-size: clamp(28px, 8.5vw, 38px);
+    font-size: 30px;
+    line-height: 1.1;
     letter-spacing: -0.03em;
+    max-width: 100%;
+    word-break: normal;
+    overflow-wrap: anywhere;
   }
+
+  /* Subtitle trimmed */
   .hero-sub {
-    font-size: 15px;
-    line-height: 1.65;
-    margin-top: 16px;
+    font-size: 14.5px;
+    line-height: 1.62;
+    margin-top: 14px;
+    max-width: 100%;
   }
+
+  /* Stacked full-width CTAs */
   .hero-cta {
     flex-direction: column;
     gap: 10px;
-    margin-top: 26px;
-  }
-  .hero-cta > a,
-  .hero-cta > a > .btn {
+    margin-top: 22px;
     width: 100%;
   }
-  .hero-trust {
-    flex-direction: column;
-    gap: 10px;
-    font-size: 12px;
-    margin-top: 22px;
-  }
-  .hero-orb {
-    opacity: 0.4;
-  }
-  .orb-1 {
-    width: 360px;
-    height: 360px;
-    left: -140px;
-    top: -120px;
-  }
-  .orb-2 {
-    width: 320px;
-    height: 320px;
-    right: -120px;
-    top: 60px;
+  .hero-cta > a,
+  .hero-cta > a > .btn,
+  .hero-cta .btn {
+    width: 100%;
   }
 
+  /* Trust chips inline, wrap gracefully */
+  .hero-trust {
+    margin-top: 20px;
+    gap: 8px 14px;
+    font-size: 11.5px;
+    flex-wrap: wrap;
+  }
+  .trust-item {
+    flex: 0 0 auto;
+    background: #fff;
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    border-radius: 999px;
+  }
+
+  /* Pull the visual in a touch on tiny screens */
+  .hero-visual {
+    margin-top: 6px;
+  }
+
+  /* Tame the orbs so they don't dominate */
+  .hero-orb {
+    opacity: 0.35;
+  }
+  .orb-1 {
+    width: 300px;
+    height: 300px;
+    left: -140px;
+    top: -100px;
+  }
+  .orb-2 {
+    width: 260px;
+    height: 260px;
+    right: -120px;
+    top: 40px;
+  }
+
+  /* Sections below */
   .section {
-    padding: 56px 0;
+    padding: 52px 0;
   }
   .section-head {
-    margin-bottom: 36px;
+    margin-bottom: 32px;
   }
   .section-title {
-    font-size: clamp(24px, 7vw, 30px);
+    font-size: 24px;
+    line-height: 1.2;
   }
   .section-sub {
-    font-size: 14.5px;
+    font-size: 14px;
+    line-height: 1.6;
   }
 
   .feature-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 12px;
   }
   .feature-card {
-    padding: 20px;
+    padding: 18px;
   }
 
   .split {
-    gap: 28px;
-  }
-  .split-copy .section-sub {
-    max-width: 100%;
+    gap: 24px;
   }
   .checklist li {
     font-size: 13.5px;
   }
 
   .price-card {
-    padding: 26px 22px;
+    padding: 24px 20px;
   }
   .price-num {
-    font-size: 32px;
-  }
-  .price-ribbon {
-    right: 16px;
-    font-size: 10.5px;
-    padding: 4px 10px;
+    font-size: 30px;
   }
 
   .cta-band {
-    padding: 32px 24px;
+    padding: 28px 20px;
     border-radius: var(--r-lg);
     flex-direction: column;
     align-items: stretch;
     text-align: center;
-    gap: 18px;
+    gap: 16px;
   }
   .cta-band > a > .btn,
   .cta-band .btn {
     width: 100%;
   }
   .cta-title {
-    font-size: 22px;
+    font-size: 20px;
+    line-height: 1.25;
   }
   .cta-sub {
-    font-size: 13.5px;
+    font-size: 13px;
   }
 
-  .container {
-    padding: 0 18px;
-  }
-}
-
-@media (max-width: 380px) {
   .container {
     padding: 0 16px;
   }
+}
+
+/* Tiny phones */
+@media (max-width: 380px) {
   .hero-title {
     font-size: 26px;
   }
   .hero-sub {
-    font-size: 14px;
+    font-size: 13.5px;
+  }
+  .hero-pill {
+    font-size: 10.5px;
   }
   .section {
-    padding: 48px 0;
-  }
-  .cta-band {
-    padding: 26px 20px;
+    padding: 44px 0;
   }
 }
 
