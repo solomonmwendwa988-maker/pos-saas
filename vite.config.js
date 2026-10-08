@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'robots.txt'],
       manifest: {
+        id: '/',
         name: 'Sokoni — Retail POS & Business Management',
         short_name: 'Sokoni',
         description:
@@ -17,11 +18,13 @@ export default defineConfig(({ mode }) => ({
         start_url: '/',
         scope: '/',
         display: 'standalone',
+        display_override: ['standalone', 'minimal-ui'],
         orientation: 'portrait-primary',
-        background_color: '#ffffff',
+        background_color: '#f6f7fb',
         theme_color: '#0f1226',
         categories: ['business', 'productivity', 'finance'],
         lang: 'en-KE',
+        dir: 'ltr',
         icons: [
           {
             src: '/icons/icon-192.png',
@@ -30,19 +33,13 @@ export default defineConfig(({ mode }) => ({
             purpose: 'any',
           },
           {
-            src: '/icons/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-          {
             src: '/icons/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any',
           },
           {
-            src: '/icons/icon-512.png',
+            src: '/icons/maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
@@ -66,6 +63,20 @@ export default defineConfig(({ mode }) => ({
             short_name: 'Products',
             url: '/products',
             description: 'Manage catalogue',
+          },
+          {
+            name: 'New Sale',
+            short_name: 'Sell',
+            url: '/pos?fresh=1',
+            description: 'Open POS with an empty cart',
+          },
+        ],
+        screenshots: [
+          {
+            src: '/icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            form_factor: 'narrow',
           },
         ],
       },
@@ -92,6 +103,11 @@ export default defineConfig(({ mode }) => ({
             },
           },
         ],
+        // Skip waiting so the new SW activates immediately when a
+        // new version is deployed — avoids the "stale app" problem.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
       },
       devOptions: {
         enabled: true,
